@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RS GE Price Tracker</title>
+    <style>
+        body {
+            width: 400px;
+            min-height: 300px;
+            margin: 0;
+            padding: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a2332 0%, #243447 50%, #2a3d52 100%);
+            background-attachment: fixed;
+            color: #e6e6e6;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: linear-gradient(145deg, #34495e 0%, #2c3e50 100%);
+            border: 2px solid #5a6c7d;
+            border-radius: 8px;
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"><defs><pattern id="stone" patternUnits="userSpaceOnUse" width="20" height="20"><circle cx="10" cy="10" r="1" fill="%23ffffff" fill-opacity="0.03"/></pattern></defs><rect width="20" height="20" fill="url(%23stone)"/></svg>') repeat;
+            border-radius: 6px;
+            pointer-events: none;
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #f4d03f;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .header .subtitle {
+            color: #bdc3c7;
+            font-size: 12px;
+            margin-top: 5px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .current-page {
+            background: linear-gradient(145deg, #2c3e50 0%, #34495e 100%);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            border: 1px solid #5a6c7d;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .current-page h3 {
+            margin: 0 0 8px 0;
+            color: #f4d03f;
+            font-size: 14px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+        
+        .add-current-btn {
+            background: linear-gradient(145deg, #27ae60 0%, #229954 100%);
+            color: white;
+            border: 1px solid #52c482;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .add-current-btn:hover {
+            background: linear-gradient(145deg, #229954 0%, #1e8449 100%);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        
+        .add-current-btn:disabled {
+            background: linear-gradient(145deg, #566573 0%, #515a5a 100%);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        .watchlist {
+            margin-top: 15px;
+        }
+        
+        .watchlist h2 {
+            margin: 0 0 10px 0;
+            color: #f4d03f;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+        
+        .watchlist-empty {
+            text-align: center;
+            padding: 30px 15px;
+            color: #95a5a6;
+            font-style: italic;
+            background: linear-gradient(145deg, #2c3e50 0%, #34495e 100%);
+            border: 1px solid #5a6c7d;
+            border-radius: 6px;
+        }
+        
+        .item {
+            background: linear-gradient(145deg, #34495e 0%, #2c3e50 100%);
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #5a6c7d;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.05), 0 2px 6px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        
+        .item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 15 15"><defs><pattern id="itemstone" patternUnits="userSpaceOnUse" width="15" height="15"><circle cx="7" cy="7" r="0.5" fill="%23ffffff" fill-opacity="0.02"/></pattern></defs><rect width="15" height="15" fill="url(%23itemstone)"/></svg>') repeat;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+        
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .item-name {
+            font-weight: bold;
+            color: #f4d03f;
+            font-size: 14px;
+            flex: 1;
+            margin-right: 10px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+        
+        .item-name a {
+            color: #f4d03f !important;
+            text-decoration: none;
+        }
+        
+        .item-name a:hover {
+            color: #f7dc6f !important;
+            text-decoration: underline;
+        }
+        
+        .remove-btn {
+            background: linear-gradient(145deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            border: 1px solid #ec7063;
+            padding: 3px 7px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .remove-btn:hover {
+            background: linear-gradient(145deg, #c0392b 0%, #922b21 100%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+        }
+        
+        .item-price {
+            color: #85c1e9;
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .thresholds {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .threshold-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .threshold-group label {
+            font-size: 11px;
+            color: #bdc3c7;
+            margin-bottom: 3px;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+        }
+        
+        .threshold-group input {
+            padding: 6px 8px;
+            border: 1px solid #5a6c7d;
+            border-radius: 4px;
+            font-size: 12px;
+            background: linear-gradient(145deg, #2c3e50 0%, #34495e 100%);
+            color: #e6e6e6;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+        }
+        
+        .threshold-group input:focus {
+            outline: none;
+            border-color: #f4d03f;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.3), 0 0 0 2px rgba(244, 208, 63, 0.2);
+        }
+        
+        .threshold-group input::placeholder {
+            color: #7f8c8d;
+        }
+        
+        .update-btn {
+            background: linear-gradient(145deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: 1px solid #5dade2;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            margin-top: 8px;
+            grid-column: span 2;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .update-btn:hover {
+            background: linear-gradient(145deg, #2980b9 0%, #21618c 100%);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        
+        .last-checked {
+            font-size: 9px;
+            color: #95a5a6;
+            margin-top: 8px;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.5);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #95a5a6;
+        }
+        
+        .error {
+            background: linear-gradient(145deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 12px;
+            border: 1px solid #ec7063;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        #refresh-prices-btn {
+            background: linear-gradient(145deg, #3498db 0%, #2980b9 100%) !important;
+            color: white !important;
+            border: 1px solid #5dade2 !important;
+            padding: 6px 12px !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 11px !important;
+            font-weight: bold !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5) !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        #refresh-prices-btn:hover {
+            background: linear-gradient(145deg, #2980b9 0%, #21618c 100%) !important;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4) !important;
+        }
+        
+        #refresh-prices-btn:disabled {
+            background: linear-gradient(145deg, #566573 0%, #515a5a 100%) !important;
+            cursor: not-allowed !important;
+            opacity: 0.7 !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏪 RS GE Price Tracker</h1>
+        <div class="subtitle">Track RuneScape Grand Exchange prices</div>
+    </div>
+    
+    <div id="current-page-section" class="current-page" style="display: none;">
+        <h3>Current Page</h3>
+        <div id="current-item-info"></div>
+        <button id="add-current-btn" class="add-current-btn">Add to Watchlist</button>
+    </div>
+    
+    <div id="error-section" class="error" style="display: none;"></div>
+    
+    <div class="watchlist">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h2 style="margin: 0;">Your Watchlist</h2>
+            <button id="refresh-prices-btn" style="background: #2196F3; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-size: 11px;">
+                🔄 Refresh Prices
+            </button>
+        </div>
+        <div id="watchlist-container">
+            <div class="loading">Loading watchlist...</div>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

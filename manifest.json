@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "RS Grand Exchange Price Tracker",
+  "version": "1.0",
+  "description": "Track RuneScape Grand Exchange item prices and set price alerts.",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://secure.runescape.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://secure.runescape.com/m=itemdb_rs/*"],
+      "js": ["src/content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
