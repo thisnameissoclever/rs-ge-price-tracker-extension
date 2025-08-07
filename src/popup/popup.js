@@ -14,6 +14,11 @@ async function initializePopup() {
         // Load and display watchlist
         await loadWatchlist();
         
+        // Auto-refresh prices when popup opens
+        setTimeout(() => {
+            autoRefreshPrices();
+        }, 500); // Small delay to let UI load first
+        
         // Add refresh button event listener
         const refreshBtn = document.getElementById('refresh-prices-btn');
         if (refreshBtn) {
@@ -63,10 +68,11 @@ function showCurrentPageSection(itemData) {
     `;
     
     // Show the section
-    section.style.display = 'block';
+    section.classList.remove('hidden');
     
     // Handle add button click
-    addBtn.onclick = () => addCurrentItem(itemData);
+    addBtn.removeEventListener('click', addCurrentItem); // Remove any existing listener
+    addBtn.addEventListener('click', () => addCurrentItem(itemData));
 }
 
 async function addCurrentItem(itemData) {
@@ -124,15 +130,44 @@ async function loadWatchlist() {
     }
 }
 
-async function refreshPrices() {
-    const refreshBtn = document.getElementById('refresh-prices-btn');
+async function autoRefreshPrices() {
+    const indicator = document.getElementById('auto-refresh-indicator');
     const container = document.getElementById('watchlist-container');
     
     try {
-        // Show loading state
+        // Show spinner indicator
+        indicator.classList.add('visible');
+        
+        // Trigger price refresh
+        const response = await sendMessage({ action: 'refreshPrices' });
+        
+        if (response.success && response.data && response.data.length > 0) {
+            // Only update if we have items to show
+            displayWatchlist(response.data);
+        }
+        
+    } catch (error) {
+        console.error('Auto-refresh error:', error);
+        // Don't show error for auto-refresh, just log it
+    } finally {
+        // Hide spinner after refresh completes
+        setTimeout(() => {
+            indicator.classList.remove('visible');
+        }, 500); // Small delay so user can see it completed
+    }
+}
+
+async function refreshPrices() {
+    const refreshBtn = document.getElementById('refresh-prices-btn');
+    const indicator = document.getElementById('auto-refresh-indicator');
+    const container = document.getElementById('watchlist-container');
+    
+    try {
+        // Show loading state on button and spinner
         const originalText = refreshBtn.textContent;
         refreshBtn.textContent = '🔄 Refreshing...';
         refreshBtn.disabled = true;
+        indicator.classList.add('visible');
         
         // Trigger price refresh
         const response = await sendMessage({ action: 'refreshPrices' });
@@ -157,6 +192,11 @@ async function refreshPrices() {
         
         refreshBtn.textContent = '🔄 Refresh Prices';
         refreshBtn.disabled = false;
+    } finally {
+        // Hide spinner
+        setTimeout(() => {
+            indicator.classList.remove('visible');
+        }, 500);
     }
 }
 
@@ -185,13 +225,13 @@ function displayWatchlist(watchlist) {
         // Remove button
         const removeBtn = document.getElementById(`remove-${item.id}`);
         if (removeBtn) {
-            removeBtn.onclick = () => removeItem(item.id);
+            removeBtn.addEventListener('click', () => removeItem(item.id));
         }
         
         // Update button
         const updateBtn = document.getElementById(`update-${item.id}`);
         if (updateBtn) {
-            updateBtn.onclick = () => updateThresholds(item.id);
+            updateBtn.addEventListener('click', () => updateThresholds(item.id));
         }
     });
 }
@@ -222,43 +262,96 @@ function createItemHTML(item) {
         }
     }
     
+    // Determine alert status and colors
+    let alertStatus = 'normal';
+    let alertIndicator = '';
+    
+    if (item.currentPrice && item.lowThreshold && item.currentPrice <= item.lowThreshold) {
+        alertStatus = 'low';
+        alertIndicator = '<span class="alert-indicator-low">🔻 LOW</span>';
+    } else if (item.currentPrice && item.highThreshold && item.currentPrice >= item.highThreshold) {
+        alertStatus = 'high';
+        alertIndicator = '<span class="alert-indicator-high">🔺 HIGH</span>';
+    }
+    
+    const itemClass = alertStatus === 'low' ? 'item-low-alert' : 
+                      alertStatus === 'high' ? 'item-high-alert' : 'item-normal';
+    
     return `
-        <div class="item">
+        <div class="item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
             <div class="item-header">
                 <div class="item-name" title="${escapeHtml(item.name)}">
                     <a href="https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${item.id}" 
                        target="_blank" 
-                       style="color: #333; text-decoration: none; cursor: pointer;"
-                       onmouseover="this.style.color='#2196F3'; this.style.textDecoration='underline';"
-                       onmouseout="this.style.color='#333'; this.style.textDecoration='none';">
+                       class="item-link ${alertStatus !== 'normal' ? 'item-link-alert' : ''}">
                         ${escapeHtml(item.name)}
                     </a>
+                    ${alertIndicator}
                 </div>
                 <button id="remove-${item.id}" class="remove-btn" title="Remove from watchlist">×</button>
             </div>
-            <div class="item-price" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>Current Price: <strong>${item.currentPrice ? formatPriceExact(item.currentPrice) + ' gp' : 'Unknown'}</strong></span>
-                ${item.currentPrice ? `<small style="color: #666;">${timeSinceCheck}</small>` : ''}
+            <div class="item-price">
+                <span class="current-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
+                    Current Price: <strong>${item.currentPrice ? formatPriceExact(item.currentPrice) + ' gp' : 'Unknown'}</strong>
+                </span>
+                ${item.currentPrice ? `<small class="time-since ${alertStatus !== 'normal' ? 'time-since-alert' : ''}">${timeSinceCheck}</small>` : ''}
             </div>
             <div class="thresholds">
                 <div class="threshold-group">
-                    <label>Low Alert (≤)</label>
+                    <label class="${alertStatus === 'low' ? 'threshold-label-low' : 'threshold-label'}">Low Alert (≤)</label>
                     <input type="number" id="low-${item.id}" placeholder="e.g. 1000" 
-                           value="${item.lowThreshold || ''}" min="0">
+                           value="${item.lowThreshold || ''}" min="0"
+                           class="threshold-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}">
                 </div>
                 <div class="threshold-group">
-                    <label>High Alert (≥)</label>
+                    <label class="${alertStatus === 'high' ? 'threshold-label-high' : 'threshold-label'}">High Alert (≥)</label>
                     <input type="number" id="high-${item.id}" placeholder="e.g. 5000" 
-                           value="${item.highThreshold || ''}" min="0">
+                           value="${item.highThreshold || ''}" min="0"
+                           class="threshold-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}">
                 </div>
-                <button id="update-${item.id}" class="update-btn">Update Alerts</button>
+                <button id="update-${item.id}" class="update-btn ${alertStatus !== 'normal' ? 'update-btn-alert' : ''} ${alertStatus === 'low' ? 'update-btn-low' : alertStatus === 'high' ? 'update-btn-high' : ''}">
+                    Update Alerts
+                </button>
             </div>
-            <div class="last-checked" style="display: flex; justify-content: space-between;">
+            <div class="last-checked ${alertStatus !== 'normal' ? 'last-checked-alert' : ''}">
                 <span>Added: ${addedAt}</span>
                 <span>Last checked: ${lastChecked}</span>
             </div>
         </div>
     `;
+}
+
+function refreshSingleItem(updatedItem) {
+    // Find the existing item element
+    const existingItemElement = document.querySelector(`[data-item-id="${updatedItem.id}"]`);
+    if (!existingItemElement) {
+        console.log('Item element not found for refresh:', updatedItem.id);
+        return;
+    }
+    
+    // Create new HTML for the item
+    const newItemHTML = createItemHTML(updatedItem);
+    
+    // Create a temporary container to parse the new HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = newItemHTML;
+    const newItemElement = tempDiv.firstElementChild;
+    
+    // Replace the old element with the new one
+    existingItemElement.parentNode.replaceChild(newItemElement, existingItemElement);
+    
+    // Re-attach event listeners for this specific item
+    const removeBtn = document.getElementById(`remove-${updatedItem.id}`);
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => removeItem(updatedItem.id));
+    }
+    
+    const updateBtn = document.getElementById(`update-${updatedItem.id}`);
+    if (updateBtn) {
+        updateBtn.addEventListener('click', () => updateThresholds(updatedItem.id));
+    }
+    
+    console.log('Refreshed single item display:', updatedItem.name);
 }
 
 async function removeItem(itemId) {
@@ -317,6 +410,15 @@ async function updateThresholds(itemId) {
             updateBtn.textContent = 'Updated!';
             updateBtn.style.background = '#4CAF50';
             
+            // Get the updated item data and refresh its appearance immediately
+            const updatedItemResponse = await sendMessage({ action: 'getWatchlist' });
+            if (updatedItemResponse.success) {
+                const updatedItem = updatedItemResponse.data[itemId];
+                if (updatedItem) {
+                    refreshSingleItem(updatedItem);
+                }
+            }
+            
             setTimeout(() => {
                 updateBtn.textContent = 'Update Alerts';
                 updateBtn.style.background = '';
@@ -365,10 +467,10 @@ function escapeHtml(text) {
 function showError(message) {
     const errorSection = document.getElementById('error-section');
     errorSection.textContent = message;
-    errorSection.style.display = 'block';
+    errorSection.classList.remove('hidden');
     
     // Hide after 5 seconds
     setTimeout(() => {
-        errorSection.style.display = 'none';
+        errorSection.classList.add('hidden');
     }, 5000);
 }
