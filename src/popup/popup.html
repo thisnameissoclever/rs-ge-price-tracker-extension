@@ -74,6 +74,19 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
         }
         
+        .current-page h2 {
+            margin: 0 0 10px 0;
+            color: #f4d03f;
+            font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+        }
+        
+        #current-item-info {
+            margin-bottom: 12px;
+            color: #e6e6e6;
+            line-height: 1.4;
+        }
+        
         .add-current-btn {
             background: linear-gradient(145deg, #27ae60 0%, #229954 100%);
             color: white;
@@ -86,6 +99,8 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
             transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 8px;
         }
         
         .add-current-btn:hover {
@@ -497,13 +512,17 @@
 </head>
 <body>
     <div class="header">
-        <h1>🏪 RS GE Price Tracker</h1>
+        <h1><svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align: middle; margin-right: 8px;" fill="currentColor">
+            <circle cx="10" cy="10" r="8" stroke="#f4d03f" stroke-width="2" fill="none"/>
+            <text x="10" y="14" text-anchor="middle" font-size="12" fill="#f4d03f" font-weight="bold">GP</text>
+        </svg>RS GE Price Tracker</h1>
         <div class="subtitle">Track RuneScape Grand Exchange prices</div>
     </div>
     
         <div id="current-page-section" class="current-page hidden">
         <h2>Current Page Item</h2>
         <div id="current-item-info"></div>
+        <button id="add-current-btn" class="add-current-btn">Add to Watchlist</button>
     </div>
     
     <div id="error-section" class="error hidden"></div>

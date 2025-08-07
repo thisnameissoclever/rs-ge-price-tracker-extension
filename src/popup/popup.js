@@ -57,7 +57,7 @@ async function checkCurrentPage() {
     }
 }
 
-function showCurrentPageSection(itemData) {
+async function showCurrentPageSection(itemData) {
     const section = document.getElementById('current-page-section');
     const infoDiv = document.getElementById('current-item-info');
     const addBtn = document.getElementById('add-current-btn');
@@ -67,12 +67,35 @@ function showCurrentPageSection(itemData) {
         ${itemData.currentPrice ? `Current Price: ${formatPriceExact(itemData.currentPrice)} gp` : 'Price: Unknown'}
     `;
     
+    // Check if item is already in watchlist
+    try {
+        const watchlistResponse = await sendMessage({ action: 'getWatchlist' });
+        if (watchlistResponse.success && watchlistResponse.data[itemData.id]) {
+            // Item already in watchlist
+            addBtn.textContent = 'Already Tracking';
+            addBtn.disabled = true;
+            addBtn.style.background = '#566573';
+        } else {
+            // Item not in watchlist
+            addBtn.textContent = 'Add to Watchlist';
+            addBtn.disabled = false;
+            addBtn.style.background = '';
+            // Handle add button click
+            addBtn.removeEventListener('click', addCurrentItem); // Remove any existing listener
+            addBtn.addEventListener('click', () => addCurrentItem(itemData));
+        }
+    } catch (error) {
+        console.error('Error checking watchlist status:', error);
+        // Default to allowing add
+        addBtn.textContent = 'Add to Watchlist';
+        addBtn.disabled = false;
+        addBtn.style.background = '';
+        addBtn.removeEventListener('click', addCurrentItem);
+        addBtn.addEventListener('click', () => addCurrentItem(itemData));
+    }
+    
     // Show the section
     section.classList.remove('hidden');
-    
-    // Handle add button click
-    addBtn.removeEventListener('click', addCurrentItem); // Remove any existing listener
-    addBtn.addEventListener('click', () => addCurrentItem(itemData));
 }
 
 async function addCurrentItem(itemData) {
