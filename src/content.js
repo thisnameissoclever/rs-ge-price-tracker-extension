@@ -205,13 +205,35 @@ function addTrackingButton(itemData) {
     existingButton.remove();
   }
   
+  // Try to detect header height dynamically
+  let headerHeight = 120; // Default fallback
+  
+  // Look for common header elements on the RuneScape site
+  const potentialHeaders = [
+    document.querySelector('header'),
+    document.querySelector('.header'),
+    document.querySelector('#header'),
+    document.querySelector('.top-nav'),
+    document.querySelector('.navigation'),
+    document.querySelector('[class*="header"]')
+  ].filter(Boolean);
+  
+  if (potentialHeaders.length > 0) {
+    const header = potentialHeaders[0];
+    const headerRect = header.getBoundingClientRect();
+    if (headerRect.height > 0 && headerRect.height < 300) {
+      headerHeight = Math.ceil(headerRect.height + 10); // Add 10px padding
+      console.log('Detected header height:', headerHeight);
+    }
+  }
+  
   // Create tracking button
   const button = document.createElement('button');
   button.id = 'rs-tracker-btn';
   button.innerHTML = '📈 Track this item';
   button.style.cssText = `
     position: fixed;
-    top: 10px;
+    top: ${headerHeight}px;
     right: 10px;
     z-index: 10000;
     padding: 10px 15px;
@@ -291,6 +313,15 @@ function showMessage(text, type = 'info') {
     existingMsg.remove();
   }
   
+  // Calculate message position based on button position
+  const trackButton = document.getElementById('rs-tracker-btn');
+  let messageTop = 170; // Default fallback
+  
+  if (trackButton) {
+    const buttonRect = trackButton.getBoundingClientRect();
+    messageTop = buttonRect.bottom + 10; // Position message below button with 10px gap
+  }
+  
   // Create message element
   const message = document.createElement('div');
   message.id = 'rs-tracker-message';
@@ -301,7 +332,7 @@ function showMessage(text, type = 'info') {
   
   message.style.cssText = `
     position: fixed;
-    top: 60px;
+    top: ${messageTop}px;
     right: 10px;
     z-index: 10001;
     padding: 10px 15px;
