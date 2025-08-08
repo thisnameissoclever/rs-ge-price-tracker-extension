@@ -9,7 +9,7 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 - **⏰ Background Monitoring**: Continuous price checking every 1-60 minutes (configurable)
 - **🎯 Easy Item Management**: Add items directly from RS item pages or through the popup
 - **⚙️ Comprehensive Settings**: Customize update intervals, notifications, display options, and more (v1.0.1: ALL SETTINGS NOW FUNCTIONAL!)
-- **💾 Local Storage**: All data stored securely on your device - no external servers
+- **💾 Cross-Device Sync**: Watchlist and thresholds automatically sync across all your Chrome browsers via Google account
 - **🖥️ Compact View**: Space-efficient layout option to view more items at once
 - **🎨 RuneScape-themed UI**: Authentic game-inspired design with alert animations
 - **💰 Flexible Price Formats**: Display prices as full GP, abbreviated (k/m), or auto-format (v1.0.1)
@@ -67,7 +67,7 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
    ```
 
 2. **Look for the "Track this item" button**
-   - A blue **"📈 Track this item"** button will appear in the top-right corner of the page
+   - Scroll down slightly, and a **"📈 Track this item"** button will appear in the top-right corner of the page
    - If you don't see it, make sure the page has fully loaded
 
 3. **Add to watchlist**
@@ -166,10 +166,59 @@ For each tracked item (using Elder Logs as an example):
   - *This controls when you get notified about significant price movements, even without setting specific thresholds*
   - *Example: If set to 15%, you'll get alerts when any item's price changes by 15% or more since last check*
 
-#### Data Management
-- **Export Data**: Download your watchlist and settings as JSON
-- **Import Data**: Restore from previously exported data
-- **Reset Settings**: Return all settings to defaults
+#### Data Management & Sync
+- **🔄 Cross-Device Sync**: Your watchlist and price thresholds automatically sync across all devices where you're signed into Chrome
+- **📱 Multi-Computer Access**: Add items on your desktop, check alerts on your laptop - all seamlessly synchronized
+- **☁️ Google Account Integration**: Uses Chrome's built-in sync via your Google account (no additional accounts needed)
+- **🔒 Privacy-First**: No external servers - data syncs directly through Google's secure Chrome sync service
+- **📤 Export Data**: Download your watchlist and settings as JSON for backup
+- **📥 Import Data**: Restore from previously exported data
+- **🔄 Reset Settings**: Return all settings to defaults
+
+### Cross-Device Sync Details
+
+Your watchlist automatically syncs when you:
+- **Sign in to Chrome** with your Google account on any device
+- **Enable Chrome Sync** in your browser settings
+- **Install the extension** on additional computers
+
+**What syncs:**
+- ✅ All tracked items and their current prices
+- ✅ High and low price thresholds for each item
+- ✅ Alert settings and preferences
+- ✅ Display and sorting preferences
+
+**What doesn't sync:**
+- ❌ Notification history (for performance)
+- ❌ Temporary UI states
+
+### Fallback: Manual Export/Import
+
+For browsers that don't support Chrome sync (Vivaldi, Brave, Opera), or for manual backups:
+
+#### **📤 Export Your Data:**
+1. Open extension settings (⚙️ button in popup)
+2. Scroll to "Data Management & Sync" section
+3. Click "📤 Export" button
+4. Save the JSON file to your desired location
+
+#### **📥 Import Your Data:**
+1. Open extension settings on target browser/computer
+2. Click "📥 Import" button in "Data Management & Sync" section
+3. Select your previously exported JSON file
+4. Confirm the import (this replaces current data)
+
+**Export includes:**
+- ✅ Complete watchlist with all items
+- ✅ All price thresholds (high/low alerts)
+- ✅ All extension settings and preferences
+- ✅ Export date and version for compatibility
+
+**Use cases:**
+- 🔄 Transfer data between different browsers
+- 💾 Create backups before major changes
+- 📱 Move data to non-Chrome browsers (Vivaldi, Brave, etc.)
+- 🖥️ Set up extension on work computers without Chrome sync
 
 ## 🔧 Technical Details
 
@@ -240,7 +289,17 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ## 🔄 Changelog
 
-### Version 1.0.1 (Latest)
+### Version 1.0.2 (Latest)
+- **🔄 NEW**: Cross-device sync - watchlist and thresholds automatically sync across all your Chrome browsers
+- **☁️ ENHANCED**: Google account integration for seamless multi-computer access
+- **🔧 IMPROVED**: Automatic migration from local to sync storage for existing users
+- **📱 NEW**: Add items on one device, get alerts on another - full synchronization
+- **🔒 ENHANCED**: Privacy-first sync using Chrome's built-in Google sync (no external servers)
+- **📤 NEW**: Enhanced JSON export/import for browsers without Chrome sync (Vivaldi, Brave, Opera)
+- **💾 IMPROVED**: One-click backup and restore functionality with detailed progress messages
+- **🔄 NEW**: Cross-browser compatibility - transfer watchlists between any Chromium browser
+
+### Version 1.0.1
 - **✨ NEW**: Full settings integration - all settings are now functional!
 - **💰 ENHANCED**: Price format settings now work throughout the extension (gp, k, m, auto)
 - **🔔 ENHANCED**: Notification duration control (1-30 seconds or persistent until dismissed)

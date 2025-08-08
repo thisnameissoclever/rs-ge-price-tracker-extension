@@ -73,6 +73,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
   
+  if (message.action === 'refreshWatchlist') {
+    updateBadgeFromWatchlist()
+      .then(() => sendResponse({ success: true }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+  
   // Handle settings messages
   if (message.type === 'SETTINGS_UPDATED') {
     handleSettingsUpdate(message.settings);
@@ -110,8 +117,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 async function addItemToWatchlist(itemData) {
   try {
     console.log('🔧 Background: Adding item to watchlist:', itemData);
-    const result = await chrome.storage.local.get(['watchlist']);
-    const watchlist = result.watchlist || {};
+    const watchlist = await getWatchlist();
     
     console.log('📊 Current watchlist before adding:', Object.keys(watchlist));
     
@@ -153,14 +159,14 @@ async function addItemToWatchlist(itemData) {
       addedAt: Date.now()
     };
     
-    await chrome.storage.local.set({ watchlist });
-    console.log('💾 Item saved to storage. Updated watchlist keys:', Object.keys(watchlist));
+    await chrome.storage.sync.set({ watchlist });
+    console.log('💾 Item saved to sync storage. Updated watchlist keys:', Object.keys(watchlist));
     console.log('🎯 Newly added item data:', watchlist[itemId]);
     
     // Immediately verify the save worked
-    const verifyResult = await chrome.storage.local.get(['watchlist']);
+    const verifyResult = await chrome.storage.sync.get(['watchlist']);
     const verifiedWatchlist = verifyResult.watchlist || {};
-    console.log('✅ Verification - Item exists in storage:', !!verifiedWatchlist[itemId]);
+    console.log('✅ Verification - Item exists in sync storage:', !!verifiedWatchlist[itemId]);
     
     console.log('Item added to watchlist:', itemName, 'with ID:', itemId);
     
@@ -171,7 +177,7 @@ async function addItemToWatchlist(itemData) {
       if (currentPrice !== null) {
         watchlist[itemId].currentPrice = currentPrice;
         watchlist[itemId].lastChecked = Date.now();
-        await chrome.storage.local.set({ watchlist });
+        await chrome.storage.sync.set({ watchlist });
         console.log('Updated price for newly added item:', currentPrice);
       }
     }
@@ -184,25 +190,67 @@ async function addItemToWatchlist(itemData) {
 }
 
 // Get watchlist
+// Migrate watchlist from local to sync storage
+async function migrateWatchlistToSync(watchlist) {
+  try {
+    const watchlistSize = JSON.stringify(watchlist).length;
+    console.log(`Migrating watchlist (${watchlistSize} bytes) to sync storage...`);
+    
+    // Check if watchlist exceeds sync storage limits (100KB total, but be conservative)
+    if (watchlistSize > 80000) { // 80KB limit to be safe
+      console.warn('Watchlist too large for sync storage, keeping in local storage');
+      throw new Error('Watchlist too large for sync storage');
+    }
+    
+    // Save to sync storage
+    await chrome.storage.sync.set({ watchlist });
+    
+    // Clear from local storage after successful migration
+    await chrome.storage.local.remove(['watchlist']);
+    
+    console.log('✅ Successfully migrated watchlist to sync storage');
+  } catch (error) {
+    console.error('❌ Failed to migrate watchlist to sync storage:', error);
+    throw error;
+  }
+}
+
+// Get watchlist from storage (now synced across devices)
 async function getWatchlist() {
   try {
+    // First try to get from sync storage
+    const syncResult = await chrome.storage.sync.get(['watchlist']);
+    
+    // If we have data in sync storage, use it
+    if (syncResult.watchlist && Object.keys(syncResult.watchlist).length > 0) {
+      return syncResult.watchlist;
+    }
+    
+    // Otherwise, check if we have data in local storage (for migration)
+    const localResult = await chrome.storage.local.get(['watchlist']);
+    if (localResult.watchlist && Object.keys(localResult.watchlist).length > 0) {
+      console.log('Migrating watchlist from local to sync storage...');
+      await migrateWatchlistToSync(localResult.watchlist);
+      return localResult.watchlist;
+    }
+    
+    return {};
+  } catch (error) {
+    console.error('Error getting watchlist from sync storage, falling back to local:', error);
+    // Fallback to local storage if sync fails
     const result = await chrome.storage.local.get(['watchlist']);
     return result.watchlist || {};
-  } catch (error) {
-    console.error('Error getting watchlist:', error);
-    throw error;
   }
 }
 
 // Remove item from watchlist
 async function removeItemFromWatchlist(itemId) {
   try {
-    const result = await chrome.storage.local.get(['watchlist']);
-    const watchlist = result.watchlist || {};
+    const watchlist = await getWatchlist();
     
     if (watchlist[itemId]) {
       delete watchlist[itemId];
-      await chrome.storage.local.set({ watchlist });
+      await chrome.storage.sync.set({ watchlist });
       console.log('Item removed from watchlist:', itemId);
     }
   } catch (error) {
@@ -214,13 +262,12 @@ async function removeItemFromWatchlist(itemId) {
 // Update item thresholds
 async function updateItemThresholds(itemId, lowPrice, highPrice) {
   try {
-    const result = await chrome.storage.local.get(['watchlist']);
-    const watchlist = result.watchlist || {};
+    const watchlist = await getWatchlist();
     
     if (watchlist[itemId]) {
       watchlist[itemId].lowThreshold = lowPrice;
       watchlist[itemId].highThreshold = highPrice;
-      await chrome.storage.local.set({ watchlist });
+      await chrome.storage.sync.set({ watchlist });
       console.log('Thresholds updated for item:', itemId);
     }
   } catch (error) {
@@ -239,8 +286,7 @@ function extractItemIdFromUrl(url) {
 async function checkPricesAndAlert() {
   try {
     console.log('Starting price check cycle...');
-    const result = await chrome.storage.local.get(['watchlist']);
-    const watchlist = result.watchlist || {};
+    const watchlist = await getWatchlist();
     
     const itemIds = Object.keys(watchlist);
     console.log(`Checking prices for ${itemIds.length} items`);
@@ -346,7 +392,7 @@ async function checkPricesAndAlert() {
     updateBadge(alertCount);
     
     // Save updated watchlist (with any auto-removed items)
-    await chrome.storage.local.set({ watchlist });
+    await chrome.storage.sync.set({ watchlist });
     
     if (itemsToRemove.length > 0) {
       console.log(`Price check cycle completed. ${itemsToRemove.length} items auto-removed, ${alertCount} remaining items have alerts.`);
@@ -562,8 +608,7 @@ function updateBadge(alertCount) {
 // Calculate current alert count for badge updates
 async function updateBadgeFromWatchlist() {
   try {
-    const result = await chrome.storage.local.get(['watchlist']);
-    const watchlist = result.watchlist || {};
+    const watchlist = await getWatchlist();
     
     let alertCount = 0;
     for (const item of Object.values(watchlist)) {

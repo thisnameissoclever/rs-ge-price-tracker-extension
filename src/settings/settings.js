@@ -141,14 +141,16 @@ async function resetSettings() {
 // Export user data
 async function exportData() {
     try {
-        const data = await chrome.storage.local.get(null);
-        const syncData = await chrome.storage.sync.get(null);
+        // Get watchlist and settings from their respective storage locations
+        const watchlistData = await getWatchlistForExport();
+        const settingsData = await chrome.storage.sync.get('settings');
         
         const exportData = {
-            local: data,
-            sync: syncData,
+            watchlist: watchlistData,
+            settings: settingsData.settings || {},
             exportDate: new Date().toISOString(),
-            version: '1.0'
+            version: '1.0.2',
+            exportSource: 'RS GE Price Tracker Extension'
         };
         
         const dataStr = JSON.stringify(exportData, null, 2);
@@ -163,11 +165,29 @@ async function exportData() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
         
-        showMessage('Data exported successfully!', 'success');
+        showMessage('Data exported successfully! Use this file to import your watchlist on other devices.', 'success');
         
     } catch (error) {
         console.error('Error exporting data:', error);
         showMessage('Error exporting data. Please try again.', 'error');
+    }
+}
+
+// Get watchlist data for export (handles both sync and local storage)
+async function getWatchlistForExport() {
+    try {
+        // First try sync storage
+        const syncResult = await chrome.storage.sync.get(['watchlist']);
+        if (syncResult.watchlist && Object.keys(syncResult.watchlist).length > 0) {
+            return syncResult.watchlist;
+        }
+        
+        // Fallback to local storage
+        const localResult = await chrome.storage.local.get(['watchlist']);
+        return localResult.watchlist || {};
+    } catch (error) {
+        console.error('Error getting watchlist for export:', error);
+        return {};
     }
 }
 
@@ -177,31 +197,67 @@ async function importData(file) {
         const text = await file.text();
         const data = JSON.parse(text);
         
-        if (!data.version || !data.exportDate) {
-            throw new Error('Invalid backup file format');
+        // Check for new format (v1.0.2+)
+        if (data.version && data.watchlist !== undefined) {
+            if (confirm('This will replace your current watchlist and settings. Are you sure you want to continue?\n\nCurrent watchlist items will be lost.')) {
+                // Import watchlist
+                if (data.watchlist && Object.keys(data.watchlist).length > 0) {
+                    await chrome.storage.sync.set({ watchlist: data.watchlist });
+                    console.log('Imported watchlist with', Object.keys(data.watchlist).length, 'items');
+                }
+                
+                // Import settings
+                if (data.settings && Object.keys(data.settings).length > 0) {
+                    await chrome.storage.sync.set({ settings: data.settings });
+                    console.log('Imported settings');
+                }
+                
+                // Reload settings UI
+                await loadSettings();
+                
+                const itemCount = Object.keys(data.watchlist || {}).length;
+                showMessage(`Data imported successfully! ${itemCount} watchlist items restored. Changes will sync across your devices.`, 'success');
+                
+                // Send message to background script to update badge
+                try {
+                    await chrome.runtime.sendMessage({ action: 'refreshWatchlist' });
+                } catch (e) {
+                    console.log('Could not notify background script:', e);
+                }
+            }
         }
-        
-        if (confirm('This will replace all current data. Are you sure you want to continue?')) {
-            // Restore data
-            if (data.local) {
-                await chrome.storage.local.clear();
-                await chrome.storage.local.set(data.local);
+        // Handle legacy format (v1.0 and earlier)
+        else if (data.version && (data.local || data.sync)) {
+            if (confirm('This will replace all current data. Are you sure you want to continue?')) {
+                // Restore legacy data
+                if (data.local) {
+                    await chrome.storage.local.clear();
+                    await chrome.storage.local.set(data.local);
+                }
+                
+                if (data.sync) {
+                    await chrome.storage.sync.clear();
+                    await chrome.storage.sync.set(data.sync);
+                }
+                
+                // Reload settings
+                await loadSettings();
+                
+                showMessage('Legacy data imported successfully! Please restart the extension.', 'success');
             }
-            
-            if (data.sync) {
-                await chrome.storage.sync.clear();
-                await chrome.storage.sync.set(data.sync);
-            }
-            
-            // Reload settings
-            await loadSettings();
-            
-            showMessage('Data imported successfully! Please restart the extension.', 'success');
+        }
+        // Invalid format
+        else {
+            throw new Error('Invalid backup file format. Please ensure you\'re importing a file exported from this extension.');
         }
         
     } catch (error) {
         console.error('Error importing data:', error);
-        showMessage('Error importing data. Please check the file format.', 'error');
+        if (error.message.includes('Invalid backup file format')) {
+            showMessage('Invalid backup file format. Please select a JSON file exported from this extension.', 'error');
+        } else {
+            showMessage('Error importing data. Please check that the file is valid and try again.', 'error');
+        }
     }
 }
 
