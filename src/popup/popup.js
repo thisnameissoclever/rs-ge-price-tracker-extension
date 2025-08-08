@@ -25,6 +25,12 @@ async function initializePopup() {
             refreshBtn.addEventListener('click', refreshPrices);
         }
         
+        // Add settings button event listener
+        const settingsBtn = document.getElementById('settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', openSettings);
+        }
+        
     } catch (error) {
         console.error('Error initializing popup:', error);
         showError('Failed to initialize extension');
@@ -102,15 +108,29 @@ async function addCurrentItem(itemData) {
     const addBtn = document.getElementById('add-current-btn');
     
     try {
+        console.log('🚀 Adding item to watchlist:', itemData);
         addBtn.textContent = 'Adding...';
         addBtn.disabled = true;
-        
+
         // Send message to background script
         const response = await sendMessage({ action: 'addItem', itemData });
+        
+        console.log('📨 Background response:', response);
         
         if (response.success) {
             addBtn.textContent = 'Added!';
             addBtn.style.background = '#4CAF50';
+            
+            // Verify item was actually added by checking storage
+            setTimeout(async () => {
+                const verifyResponse = await sendMessage({ action: 'getWatchlist' });
+                if (verifyResponse.success) {
+                    console.log('✅ Verification - Item in watchlist:', !!verifyResponse.data[itemData.id]);
+                    console.log('📊 Full watchlist:', verifyResponse.data);
+                } else {
+                    console.error('❌ Failed to verify watchlist');
+                }
+            }, 500);
             
             // Reload watchlist to show the new item
             setTimeout(() => {
@@ -125,7 +145,8 @@ async function addCurrentItem(itemData) {
         }
         
     } catch (error) {
-        console.error('Error adding item:', error);
+        console.error('❌ Error adding item:', error);
+        console.log('📍 Item data that failed:', itemData);
         showError('Failed to add item: ' + error.message);
         
         addBtn.textContent = 'Add to Watchlist';
@@ -142,7 +163,7 @@ async function loadWatchlist() {
         
         if (response.success) {
             const watchlist = response.data;
-            displayWatchlist(watchlist);
+            await displayWatchlist(watchlist);
         } else {
             throw new Error(response.error || 'Failed to load watchlist');
         }
@@ -166,7 +187,7 @@ async function autoRefreshPrices() {
         
         if (response.success && response.data && response.data.length > 0) {
             // Only update if we have items to show
-            displayWatchlist(response.data);
+            await displayWatchlist(response.data);
         }
         
     } catch (error) {
@@ -197,7 +218,7 @@ async function refreshPrices() {
         
         if (response.success) {
             // Display updated watchlist
-            displayWatchlist(response.data);
+            await displayWatchlist(response.data);
             refreshBtn.textContent = '✅ Updated!';
             
             // Reset button after 2 seconds
@@ -223,7 +244,7 @@ async function refreshPrices() {
     }
 }
 
-function displayWatchlist(watchlist) {
+async function displayWatchlist(watchlist) {
     const container = document.getElementById('watchlist-container');
     
     const items = Object.values(watchlist);
@@ -238,10 +259,87 @@ function displayWatchlist(watchlist) {
         return;
     }
     
-    // Sort items by name
-    items.sort((a, b) => a.name.localeCompare(b.name));
+    // Load settings to check compact view, price format, and sort order
+    try {
+        const result = await chrome.storage.sync.get(['settings', 'sortOrder']);
+        const settings = result.settings || {};
+        const isCompactView = settings.compactView || false;
+        const priceFormat = settings.priceFormat || 'auto';
+        const sortOrder = result.sortOrder || 'alerts-first';
+        
+        renderWatchlistItems(items, container, isCompactView, priceFormat, sortOrder);
+    } catch (error) {
+        console.error('Error loading settings:', error);
+        // Fallback to normal view
+        renderWatchlistItems(items, container, false, 'auto', 'alerts-first');
+    }
+}
+
+function renderWatchlistItems(items, container, isCompactView, priceFormat = 'auto', sortOrder = 'alerts-first') {
     
-    container.innerHTML = items.map(item => createItemHTML(item)).join('');
+    // Count items with alerts for header display
+    let alertCount = 0;
+    items.forEach(item => {
+        if (item.currentPrice !== null && item.currentPrice !== undefined) {
+            if ((item.lowThreshold && item.currentPrice <= item.lowThreshold) || 
+                (item.highThreshold && item.currentPrice >= item.highThreshold)) {
+                alertCount++;
+            }
+        }
+    });
+    
+    // Update watchlist title to show alert count
+    const watchlistTitle = document.querySelector('.watchlist-title');
+    if (watchlistTitle) {
+        if (alertCount > 0) {
+            watchlistTitle.innerHTML = `Your Watchlist <span style="color: #e74c3c; font-weight: bold;">(${alertCount} alerts)</span>`;
+        } else {
+            watchlistTitle.textContent = 'Your Watchlist';
+        }
+    }
+    
+    // Sort items based on the selected sort order
+    items.sort((a, b) => {
+        const aHasAlert = (a.currentPrice !== null && 
+                          ((a.lowThreshold && a.currentPrice <= a.lowThreshold) || 
+                           (a.highThreshold && a.currentPrice >= a.highThreshold)));
+        const bHasAlert = (b.currentPrice !== null && 
+                          ((b.lowThreshold && b.currentPrice <= b.lowThreshold) || 
+                           (b.highThreshold && b.currentPrice >= b.highThreshold)));
+        
+        switch (sortOrder) {
+            case 'alerts-first':
+                if (aHasAlert && !bHasAlert) return -1;
+                if (!aHasAlert && bHasAlert) return 1;
+                return a.name.localeCompare(b.name);
+                
+            case 'name-asc':
+                return a.name.localeCompare(b.name);
+                
+            case 'name-desc':
+                return b.name.localeCompare(a.name);
+                
+            case 'price-high':
+                const aPrice = a.currentPrice || 0;
+                const bPrice = b.currentPrice || 0;
+                return bPrice - aPrice;
+                
+            case 'price-low':
+                const aPriceLow = a.currentPrice || Infinity;
+                const bPriceLow = b.currentPrice || Infinity;
+                return aPriceLow - bPriceLow;
+                
+            case 'date-added':
+                const aDate = a.addedAt || 0;
+                const bDate = b.addedAt || 0;
+                return bDate - aDate; // Newest first
+                
+            default:
+                return a.name.localeCompare(b.name);
+        }
+    });
+    
+    container.innerHTML = items.map(item => createItemHTML(item, isCompactView, priceFormat)).join('');
     
     // Add event listeners
     items.forEach(item => {
@@ -259,7 +357,7 @@ function displayWatchlist(watchlist) {
     });
 }
 
-function createItemHTML(item) {
+function createItemHTML(item, isCompactView = false, priceFormat = 'auto') {
     const lastChecked = item.lastChecked ? 
         new Date(item.lastChecked).toLocaleString() : 'Never';
     
@@ -300,6 +398,40 @@ function createItemHTML(item) {
     const itemClass = alertStatus === 'low' ? 'item-low-alert' : 
                       alertStatus === 'high' ? 'item-high-alert' : 'item-normal';
     
+    if (isCompactView) {
+        // Compact view - single line with essential info only
+        return `
+            <div class="item compact-item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
+                <div class="compact-content">
+                    <div class="compact-name-price">
+                        <a href="https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${item.id}" 
+                           target="_blank" 
+                           class="item-link ${alertStatus !== 'normal' ? 'item-link-alert' : ''}">
+                            ${escapeHtml(item.name)}
+                        </a>
+                        ${alertIndicator}
+                        <span class="compact-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
+                            ${item.currentPrice ? formatPrice(item.currentPrice, priceFormat) : 'Unknown'}
+                        </span>
+                    </div>
+                    <div class="compact-controls">
+                        <input type="number" id="low-${item.id}" placeholder="Low" 
+                               value="${item.lowThreshold || ''}" min="0"
+                               class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
+                               title="Low alert threshold">
+                        <input type="number" id="high-${item.id}" placeholder="High" 
+                               value="${item.highThreshold || ''}" min="0"
+                               class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
+                               title="High alert threshold">
+                        <button id="update-${item.id}" class="compact-update-btn ${alertStatus !== 'normal' ? 'update-btn-alert' : ''}" title="Update alerts">↑</button>
+                        <button id="remove-${item.id}" class="compact-remove-btn" title="Remove from watchlist">×</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Full view (original)
     return `
         <div class="item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
             <div class="item-header">
@@ -315,7 +447,7 @@ function createItemHTML(item) {
             </div>
             <div class="item-price">
                 <span class="current-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
-                    Current Price: <strong>${item.currentPrice ? formatPriceExact(item.currentPrice) + ' gp' : 'Unknown'}</strong>
+                    Current Price: <strong>${item.currentPrice ? formatPrice(item.currentPrice, priceFormat) : 'Unknown'}</strong>
                 </span>
                 ${item.currentPrice ? `<small class="time-since ${alertStatus !== 'normal' ? 'time-since-alert' : ''}">${timeSinceCheck}</small>` : ''}
             </div>
@@ -352,8 +484,11 @@ function refreshSingleItem(updatedItem) {
         return;
     }
     
+    // Check if we're in compact view
+    const isCompactView = existingItemElement.classList.contains('compact-item');
+    
     // Create new HTML for the item
-    const newItemHTML = createItemHTML(updatedItem);
+    const newItemHTML = createItemHTML(updatedItem, isCompactView);
     
     // Create a temporary container to parse the new HTML
     const tempDiv = document.createElement('div');
@@ -468,17 +603,36 @@ function sendMessage(message) {
     });
 }
 
-function formatPrice(price) {
-    if (price >= 1000000) {
-        return (price / 1000000).toFixed(1) + 'M';
-    } else if (price >= 1000) {
-        return (price / 1000).toFixed(1) + 'K';
+function formatPrice(price, format = 'auto') {
+    if (!price || price === null || price === undefined) return 'Unknown';
+    
+    switch (format) {
+        case 'gp':
+            return price.toLocaleString() + ' gp';
+        case 'k':
+            return (price / 1000).toFixed(1) + 'k';
+        case 'm':
+            return (price / 1000000).toFixed(2) + 'm';
+        case 'auto':
+        default:
+            if (price >= 1000000) {
+                return (price / 1000000).toFixed(1) + 'm';
+            } else if (price >= 1000) {
+                return (price / 1000).toFixed(1) + 'k';
+            }
+            return price.toLocaleString() + ' gp';
     }
-    return price.toString();
 }
 
 function formatPriceExact(price) {
     return price.toLocaleString();
+}
+
+// Open settings page
+function openSettings() {
+    chrome.tabs.create({
+        url: chrome.runtime.getURL('src/settings/settings.html')
+    });
 }
 
 function escapeHtml(text) {

@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RS GE Price Tracker - Settings</title>
+    <style>
+        body {
+            width: 600px;
+            margin: 0;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a2332 0%, #243447 50%, #2a3d52 100%);
+            background-attachment: fixed;
+            color: #e6e6e6;
+            min-height: 100vh;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(145deg, #34495e 0%, #2c3e50 100%);
+            border: 2px solid #5a6c7d;
+            border-radius: 12px;
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.4);
+        }
+        
+        .header h1 {
+            margin: 0;
+            color: #f4d03f;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .settings-section {
+            background: linear-gradient(145deg, #2c3e50 0%, #34495e 100%);
+            border: 2px solid #5a6c7d;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: inset 0 1px 3px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.4);
+        }
+        
+        .settings-section h2 {
+            margin: 0 0 15px 0;
+            color: #f4d03f;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            border-bottom: 2px solid #5a6c7d;
+            padding-bottom: 8px;
+        }
+        
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(90, 108, 125, 0.3);
+        }
+        
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+        
+        .setting-label {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        .setting-title {
+            font-weight: 600;
+            color: #e6e6e6;
+            margin-bottom: 4px;
+        }
+        
+        .setting-description {
+            font-size: 12px;
+            color: #b0b0b0;
+            line-height: 1.3;
+        }
+        
+        .setting-control {
+            margin-left: 20px;
+        }
+        
+        input[type="number"], input[type="text"], select {
+            background: #1a2332;
+            border: 2px solid #5a6c7d;
+            border-radius: 6px;
+            color: #e6e6e6;
+            padding: 8px 12px;
+            font-size: 14px;
+            min-width: 80px;
+        }
+        
+        input[type="number"]:focus, input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #f4d03f;
+            box-shadow: 0 0 0 2px rgba(244, 208, 63, 0.2);
+        }
+        
+        input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: #f4d03f;
+        }
+        
+        .button {
+            background: linear-gradient(145deg, #f4d03f 0%, #e8c547 100%);
+            border: 2px solid #d4ac0d;
+            border-radius: 8px;
+            color: #1a1a1a;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: none;
+        }
+        
+        .button:hover {
+            background: linear-gradient(145deg, #e8c547 0%, #d4ac0d 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        
+        .button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #5a6c7d;
+        }
+        
+        .success-message {
+            background: linear-gradient(145deg, #27ae60 0%, #229954 100%);
+            border: 2px solid #1e8449;
+            border-radius: 8px;
+            color: white;
+            padding: 12px 20px;
+            margin: 15px 0;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        
+        .color-preview {
+            width: 30px;
+            height: 30px;
+            border: 2px solid #5a6c7d;
+            border-radius: 6px;
+            margin-left: 10px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        
+        input[type="color"] {
+            width: 50px;
+            height: 35px;
+            border: 2px solid #5a6c7d;
+            border-radius: 6px;
+            background: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
+            </svg>
+            Settings
+        </h1>
+    </div>
+
+    <div class="settings-section">
+        <h2>Price Update Settings</h2>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Update Interval</div>
+                <div class="setting-description">How often to check for price updates in the background (1-60 minutes). Lower values = faster alerts but more server requests.</div>
+            </div>
+            <div class="setting-control">
+                <input type="number" id="updateInterval" min="1" max="60" value="5">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Auto-refresh on Open</div>
+                <div class="setting-description">Automatically refresh prices when you open the extension popup (recommended for accurate current prices)</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="autoRefresh">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Background Updates</div>
+                <div class="setting-description">Continue monitoring prices even when Chrome is minimized or in the background (uses Chrome alarms API)</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="backgroundUpdates">
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h2>Notification Settings</h2>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Desktop Notifications</div>
+                <div class="setting-description">Show system notifications when your price thresholds are triggered (requires notification permissions)</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="desktopNotifications">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Sound Alerts</div>
+                <div class="setting-description">Play system notification sound when alerts trigger (only works if desktop notifications are enabled)</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="soundAlerts">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Alert Persistence</div>
+                <div class="setting-description">How long alert notifications remain visible. "Until dismissed" = persistent until you click them.</div>
+            </div>
+            <div class="setting-control">
+                <select id="alertDuration">
+                    <option value="3000">3 seconds</option>
+                    <option value="5000">5 seconds</option>
+                    <option value="10000">10 seconds</option>
+                    <option value="0">Until dismissed</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Notification Limit</div>
+                <div class="setting-description">Maximum notifications per hour to prevent spam. Set to 0 for unlimited (not recommended).</div>
+            </div>
+            <div class="setting-control">
+                <input type="number" id="notificationLimit" min="0" max="100" value="10">
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h2>Display Settings</h2>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Price Format</div>
+                <div class="setting-description">How to display item prices throughout the extension. "10,223 gp" = full format, "10.2k" = abbreviated, "Auto" = smart formatting based on value.</div>
+            </div>
+            <div class="setting-control">
+                <select id="priceFormat">
+                    <option value="gp">10,223 gp</option>
+                    <option value="k">10.2k</option>
+                    <option value="m">0.01m</option>
+                    <option value="auto">Auto (10.2k, 1.5m)</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Sort Order</div>
+                <div class="setting-description">Default sorting for watchlist items</div>
+            </div>
+            <div class="setting-control">
+                <select id="sortOrder">
+                    <option value="name">Item Name</option>
+                    <option value="price">Current Price</option>
+                    <option value="change">Price Change</option>
+                    <option value="alert">Alert Type</option>
+                    <option value="date-added">Date Added</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Show Price History</div>
+                <div class="setting-description">Display price trend graphs in popup</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="showHistory">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Compact View</div>
+                <div class="setting-description">Use smaller item cards to show more items</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="compactView">
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h2>Alert Settings</h2>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Default Alert Type</div>
+                <div class="setting-description">Default alert when adding new items</div>
+            </div>
+            <div class="setting-control">
+                <select id="defaultAlertType">
+                    <option value="above">Price Above</option>
+                    <option value="below">Price Below</option>
+                    <option value="both">Both Above & Below</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Alert Threshold</div>
+                <div class="setting-description">Default percentage change for auto-alerts</div>
+            </div>
+            <div class="setting-control">
+                <input type="number" id="alertThreshold" min="1" max="50" value="10">%
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Snooze Duration</div>
+                <div class="setting-description">How long to snooze alerts after triggering</div>
+            </div>
+            <div class="setting-control">
+                <select id="snoozeDuration">
+                    <option value="0">No snooze</option>
+                    <option value="300000">5 minutes</option>
+                    <option value="900000">15 minutes</option>
+                    <option value="1800000">30 minutes</option>
+                    <option value="3600000">1 hour</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h2>Theme Settings</h2>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Alert Color (High)</div>
+                <div class="setting-description">Color for upward price alerts</div>
+            </div>
+            <div class="setting-control">
+                <input type="color" id="alertColorHigh" value="#27ae60">
+                <div class="color-preview" id="previewHigh"></div>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Alert Color (Low)</div>
+                <div class="setting-description">Color for downward price alerts</div>
+            </div>
+            <div class="setting-control">
+                <input type="color" id="alertColorLow" value="#e74c3c">
+                <div class="color-preview" id="previewLow"></div>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Dark Mode</div>
+                <div class="setting-description">Use dark theme (currently always enabled)</div>
+            </div>
+            <div class="setting-control">
+                <input type="checkbox" id="darkMode" checked disabled>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section">
+        <h2>Data Management</h2>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Auto-remove Inactive</div>
+                <div class="setting-description">Remove items not viewed in X days (0 = never)</div>
+            </div>
+            <div class="setting-control">
+                <input type="number" id="autoRemoveDays" min="0" max="365" value="0">
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Export Data</div>
+                <div class="setting-description">Download your watchlist and settings</div>
+            </div>
+            <div class="setting-control">
+                <button class="button" id="exportData">Export</button>
+            </div>
+        </div>
+        
+        <div class="setting-item">
+            <div class="setting-label">
+                <div class="setting-title">Import Data</div>
+                <div class="setting-description">Upload previously exported data</div>
+            </div>
+            <div class="setting-control">
+                <input type="file" id="importFile" accept=".json" style="display: none;">
+                <button class="button" id="importData">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="success-message" id="successMessage">
+        Settings saved successfully!
+    </div>
+
+    <div class="button-group">
+        <button class="button" id="saveSettings">Save Settings</button>
+        <button class="button" id="resetSettings">Reset to Defaults</button>
+        <button class="button" id="closeSettings">Close</button>
+    </div>
+
+    <script src="settings.js"></script>
+</body>
+</html>

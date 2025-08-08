@@ -6,7 +6,7 @@
     <title>RS GE Price Tracker</title>
     <style>
         body {
-            width: 400px;
+            width: 450px;
             min-height: 300px;
             margin: 0;
             padding: 15px;
@@ -342,6 +342,24 @@
             100% { transform: rotate(360deg); }
         }
         
+        @keyframes pulse-red {
+            0%, 100% { 
+                box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 0 15px rgba(231, 76, 60, 0.3);
+            }
+            50% { 
+                box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 0 25px rgba(231, 76, 60, 0.6);
+            }
+        }
+        
+        @keyframes pulse-green {
+            0%, 100% { 
+                box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 0 15px rgba(39, 174, 96, 0.3);
+            }
+            50% { 
+                box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 0 25px rgba(39, 174, 96, 0.6);
+            }
+        }
+        
         .watchlist-header {
             display: flex;
             justify-content: space-between;
@@ -382,6 +400,23 @@
             font-size: 11px;
         }
         
+        .settings-btn {
+            background: linear-gradient(145deg, #95a5a6 0%, #7f8c8d 100%);
+            color: white;
+            border: 1px solid #bdc3c7;
+            padding: 5px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .settings-btn:hover {
+            background: linear-gradient(145deg, #7f8c8d 0%, #95a5a6 100%);
+        }
+        
         .hidden {
             display: none;
         }
@@ -394,14 +429,16 @@
         
         .item-low-alert {
             background: linear-gradient(145deg, #8b2635 0%, #6b1e2b 100%);
-            border: 1px solid #a04555;
-            box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4);
+            border: 2px solid #e74c3c;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 0 15px rgba(231, 76, 60, 0.3);
+            animation: pulse-red 2s infinite;
         }
         
         .item-high-alert {
             background: linear-gradient(145deg, #2d5a3d 0%, #234a32 100%);
-            border: 1px solid #4a7c59;
-            box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4);
+            border: 2px solid #27ae60;
+            box-shadow: inset 0 1px 2px rgba(255,255,255,0.1), 0 2px 6px rgba(0,0,0,0.4), 0 0 15px rgba(39, 174, 96, 0.3);
+            animation: pulse-green 2s infinite;
         }
         
         .alert-indicator-low {
@@ -508,6 +545,119 @@
         .last-checked-alert {
             color: #d5d5d5;
         }
+        
+        /* Compact View Styles */
+        .compact-item {
+            padding: 8px 12px;
+            min-height: auto;
+        }
+        
+        .compact-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .compact-name-price {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .compact-name-price a {
+            color: #f4d03f !important;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 140px;
+        }
+        
+        .compact-name-price a:hover {
+            color: #f7dc6f !important;
+            text-decoration: underline;
+        }
+        
+        .compact-price {
+            color: #e6e6e6;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        
+        .compact-controls {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .compact-input {
+            width: 60px;
+            padding: 4px 6px;
+            font-size: 11px;
+            background: #1a2332;
+            border: 1px solid #5a6c7d;
+            border-radius: 3px;
+            color: #e6e6e6;
+        }
+        
+        .compact-input:focus {
+            outline: none;
+            border-color: #f4d03f;
+        }
+        
+        .compact-update-btn {
+            background: linear-gradient(145deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: 1px solid #5dade2;
+            padding: 4px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 20px;
+        }
+        
+        .compact-update-btn:hover {
+            background: linear-gradient(145deg, #2980b9 0%, #3498db 100%);
+        }
+        
+        .compact-remove-btn {
+            background: linear-gradient(145deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            border: 1px solid #ec7063;
+            padding: 4px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 20px;
+        }
+        
+        .compact-remove-btn:hover {
+            background: linear-gradient(145deg, #c0392b 0%, #e74c3c 100%);
+        }
+        
+        /* Compact alert styles */
+        .compact-item.item-low-alert .compact-price {
+            color: #e74c3c;
+        }
+        
+        .compact-item.item-high-alert .compact-price {
+            color: #27ae60;
+        }
+        
+        .compact-item .alert-indicator-low,
+        .compact-item .alert-indicator-high {
+            font-size: 10px;
+            padding: 1px 3px;
+            border-radius: 2px;
+        }
     </style>
 </head>
 <body>
@@ -535,6 +685,9 @@
                     <div class="spinner"></div>
                     <span>Updating prices...</span>
                 </div>
+                <button id="settings-btn" class="settings-btn">
+                    ⚙️ Settings
+                </button>
                 <button id="refresh-prices-btn" class="refresh-btn">
                     🔄 Refresh Prices
                 </button>

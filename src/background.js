@@ -10,6 +10,15 @@ chrome.runtime.onInstalled.addListener(() => {
     delayInMinutes: 1, 
     periodInMinutes: 5 
   });
+  
+  // Update badge on install
+  updateBadgeFromWatchlist();
+});
+
+// Update badge on startup
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Extension started');
+  updateBadgeFromWatchlist();
 });
 
 // Handle messages from content script and popup
@@ -18,7 +27,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.action === 'addItem') {
     addItemToWatchlist(message.itemData)
-      .then(result => sendResponse({ success: true, data: result }))
+      .then(result => {
+        updateBadgeFromWatchlist(); // Update badge after adding item
+        sendResponse({ success: true, data: result });
+      })
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Will respond asynchronously
   }
@@ -32,14 +44,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   if (message.action === 'removeItem') {
     removeItemFromWatchlist(message.itemId)
-      .then(() => sendResponse({ success: true }))
+      .then(() => {
+        updateBadgeFromWatchlist(); // Update badge after removing item
+        sendResponse({ success: true });
+      })
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
   
   if (message.action === 'updateThresholds') {
     updateItemThresholds(message.itemId, message.lowPrice, message.highPrice)
-      .then(() => sendResponse({ success: true }))
+      .then(() => {
+        updateBadgeFromWatchlist(); // Update badge after updating thresholds
+        sendResponse({ success: true });
+      })
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
@@ -54,6 +72,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
+  
+  // Handle settings messages
+  if (message.type === 'SETTINGS_UPDATED') {
+    handleSettingsUpdate(message.settings);
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  if (message.type === 'GET_SETTINGS') {
+    getSettings()
+      .then(settings => sendResponse({ success: true, settings }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
 });
 
 // Handle alarms for periodic price checking
@@ -63,11 +95,25 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }
 });
 
+// Handle notification clicks - open the extension popup
+chrome.notifications.onClicked.addListener((notificationId) => {
+  console.log('Notification clicked:', notificationId);
+  
+  // Clear the clicked notification
+  chrome.notifications.clear(notificationId);
+  
+  // Could open the extension popup here, but since it's a service worker,
+  // we'll let the user click the extension icon instead
+});
+
 // Add item to watchlist
 async function addItemToWatchlist(itemData) {
   try {
+    console.log('🔧 Background: Adding item to watchlist:', itemData);
     const result = await chrome.storage.local.get(['watchlist']);
     const watchlist = result.watchlist || {};
+    
+    console.log('📊 Current watchlist before adding:', Object.keys(watchlist));
     
     // Use the item ID from the data
     const itemId = itemData.id;
@@ -93,6 +139,8 @@ async function addItemToWatchlist(itemData) {
       itemName = `Item ${itemId}`; // Fallback name
     }
     
+    console.log('✏️ Creating watchlist entry for:', { itemId, itemName, currentPrice: itemData.currentPrice });
+    
     watchlist[itemId] = {
       id: itemId,
       name: itemName,
@@ -106,6 +154,14 @@ async function addItemToWatchlist(itemData) {
     };
     
     await chrome.storage.local.set({ watchlist });
+    console.log('💾 Item saved to storage. Updated watchlist keys:', Object.keys(watchlist));
+    console.log('🎯 Newly added item data:', watchlist[itemId]);
+    
+    // Immediately verify the save worked
+    const verifyResult = await chrome.storage.local.get(['watchlist']);
+    const verifiedWatchlist = verifyResult.watchlist || {};
+    console.log('✅ Verification - Item exists in storage:', !!verifiedWatchlist[itemId]);
+    
     console.log('Item added to watchlist:', itemName, 'with ID:', itemId);
     
     // Immediately try to fetch current price if we don't have one
@@ -191,8 +247,12 @@ async function checkPricesAndAlert() {
     
     if (itemIds.length === 0) {
       console.log('No items to check');
+      updateBadge(0); // Clear badge when no items
       return;
     }
+    
+    let alertCount = 0;
+    let itemsToRemove = []; // Track items to auto-remove
     
     // Check each item
     for (const itemId of itemIds) {
@@ -213,26 +273,48 @@ async function checkPricesAndAlert() {
           
           // Check thresholds and send notifications
           let notificationSent = false;
+          let shouldAutoRemove = false;
+          
+          // Load auto-remove setting
+          const autoRemoveResult = await chrome.storage.sync.get(['autoRemove']);
+          const autoRemove = autoRemoveResult.autoRemove || false;
           
           if (item.lowThreshold && currentPrice <= item.lowThreshold) {
-            sendNotification(`${item.name} - LOW PRICE ALERT!`, 
-              `Price dropped to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.lowThreshold)} gp)`);
+            await sendNotification(`${item.name} - LOW PRICE ALERT!`, 
+              `Price dropped to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.lowThreshold)} gp)`,
+              'low');
             notificationSent = true;
+            if (autoRemove) shouldAutoRemove = true;
           }
           
           if (item.highThreshold && currentPrice >= item.highThreshold) {
-            sendNotification(`${item.name} - HIGH PRICE ALERT!`, 
-              `Price rose to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.highThreshold)} gp)`);
+            await sendNotification(`${item.name} - HIGH PRICE ALERT!`, 
+              `Price rose to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.highThreshold)} gp)`,
+              'high');
             notificationSent = true;
+            if (autoRemove) shouldAutoRemove = true;
           }
           
-          // Also notify of significant price changes (10% or more)
+          // Auto-remove item if threshold triggered and setting enabled
+          if (shouldAutoRemove) {
+            console.log(`Auto-removing item ${item.name} after threshold alert`);
+            delete watchlist[itemId];
+            itemsToRemove.push(itemId);
+          }
+          
+          // Also notify of significant price changes (10% or more, or custom threshold)
           if (!notificationSent && previousPrice && previousPrice > 0) {
             const changePercent = Math.abs((currentPrice - previousPrice) / previousPrice * 100);
-            if (changePercent >= 10) {
+            
+            // Load alert threshold setting
+            const thresholdResult = await chrome.storage.sync.get(['alertThreshold']);
+            const alertThreshold = thresholdResult.alertThreshold || 10; // Default 10%
+            
+            if (changePercent >= alertThreshold) {
               const direction = currentPrice > previousPrice ? 'increased' : 'decreased';
-              sendNotification(`${item.name} - Price Change`, 
-                `Price ${direction} ${changePercent.toFixed(1)}% to ${formatPriceExact(currentPrice)} gp`);
+              await sendNotification(`${item.name} - Price Change`, 
+                `Price ${direction} ${changePercent.toFixed(1)}% to ${formatPriceExact(currentPrice)} gp`,
+                'change');
             }
           }
           
@@ -244,6 +326,14 @@ async function checkPricesAndAlert() {
           console.log(`Failed to fetch price for ${item.name}`);
         }
         
+        // Count items exceeding thresholds for badge
+        if (currentPrice !== null) {
+          if ((item.lowThreshold && currentPrice <= item.lowThreshold) || 
+              (item.highThreshold && currentPrice >= item.highThreshold)) {
+            alertCount++;
+          }
+        }
+        
         // Small delay between requests to be respectful to the server
         await new Promise(resolve => setTimeout(resolve, 1000));
         
@@ -252,9 +342,17 @@ async function checkPricesAndAlert() {
       }
     }
     
-    // Save updated watchlist
+    // Update badge with alert count
+    updateBadge(alertCount);
+    
+    // Save updated watchlist (with any auto-removed items)
     await chrome.storage.local.set({ watchlist });
-    console.log('Price check cycle completed, watchlist updated');
+    
+    if (itemsToRemove.length > 0) {
+      console.log(`Price check cycle completed. ${itemsToRemove.length} items auto-removed, ${alertCount} remaining items have alerts.`);
+    } else {
+      console.log(`Price check cycle completed, watchlist updated. ${alertCount} items have alerts.`);
+    }
     
   } catch (error) {
     console.error('Error in checkPricesAndAlert:', error);
@@ -375,14 +473,114 @@ async function fetchItemPrice(itemUrl, itemId) {
   }
 }
 
+// Notification rate limiting
+let notificationHistory = [];
+
 // Send notification
-function sendNotification(title, message) {
-  chrome.notifications.create({
+async function sendNotification(title, message, alertType = 'alert') {
+  // Load notification settings
+  const result = await chrome.storage.sync.get(['notificationDuration', 'notificationLimit', 'soundAlerts']);
+  const notificationDuration = result.notificationDuration || 5; // Default 5 seconds
+  const notificationLimit = result.notificationLimit || 10; // Default 10 per hour
+  const soundAlerts = result.soundAlerts !== undefined ? result.soundAlerts : true; // Default true
+  
+  // Check rate limiting
+  const now = Date.now();
+  const oneHourAgo = now - (60 * 60 * 1000); // 1 hour in milliseconds
+  
+  // Clean old notifications from history
+  notificationHistory = notificationHistory.filter(timestamp => timestamp > oneHourAgo);
+  
+  // Check if we've hit the limit
+  if (notificationHistory.length >= notificationLimit) {
+    console.log(`Notification rate limit reached (${notificationLimit}/hour). Skipping notification:`, title);
+    return;
+  }
+  
+  // Add current notification to history
+  notificationHistory.push(now);
+  
+  const notificationId = `alert-${Date.now()}-${Math.random()}`;
+  
+  // Choose icon based on alert type
+  let iconUrl = 'icon128.png';
+  if (alertType === 'low') {
+    iconUrl = 'icon128.png'; // Could use a different icon for low alerts
+  } else if (alertType === 'high') {
+    iconUrl = 'icon128.png'; // Could use a different icon for high alerts
+  }
+  
+  // Set requireInteraction based on duration (0 = persistent)
+  const requireInteraction = notificationDuration === 0;
+  
+  chrome.notifications.create(notificationId, {
     type: 'basic',
-    iconUrl: 'icon48.png',
+    iconUrl: iconUrl,
     title: title,
-    message: message
+    message: message,
+    requireInteraction: requireInteraction,
+    priority: 2, // High priority
+    silent: !soundAlerts // Invert soundAlerts setting for silent property
+  }, (notificationId) => {
+    if (chrome.runtime.lastError) {
+      console.error('Error creating notification:', chrome.runtime.lastError);
+    } else {
+      console.log('Notification created:', notificationId, soundAlerts ? '(with sound)' : '(silent)');
+      
+      // Auto-close notification after specified duration (unless persistent)
+      if (notificationDuration > 0) {
+        setTimeout(() => {
+          chrome.notifications.clear(notificationId);
+        }, notificationDuration * 1000);
+      }
+    }
   });
+}
+
+// Update extension badge with alert count
+function updateBadge(alertCount) {
+  const badgeText = alertCount > 0 ? alertCount.toString() : '';
+  const badgeColor = alertCount > 0 ? '#e74c3c' : '#34495e'; // Red for alerts, gray for none
+  
+  chrome.action.setBadgeText({ text: badgeText }, () => {
+    if (chrome.runtime.lastError) {
+      console.error('Error setting badge text:', chrome.runtime.lastError);
+    } else {
+      console.log('Badge text updated:', badgeText);
+    }
+  });
+  
+  chrome.action.setBadgeBackgroundColor({ color: badgeColor }, () => {
+    if (chrome.runtime.lastError) {
+      console.error('Error setting badge color:', chrome.runtime.lastError);
+    } else {
+      console.log('Badge color updated:', badgeColor);
+    }
+  });
+}
+
+// Calculate current alert count for badge updates
+async function updateBadgeFromWatchlist() {
+  try {
+    const result = await chrome.storage.local.get(['watchlist']);
+    const watchlist = result.watchlist || {};
+    
+    let alertCount = 0;
+    for (const item of Object.values(watchlist)) {
+      if (item.currentPrice !== null && item.currentPrice !== undefined) {
+        if ((item.lowThreshold && item.currentPrice <= item.lowThreshold) || 
+            (item.highThreshold && item.currentPrice >= item.highThreshold)) {
+          alertCount++;
+        }
+      }
+    }
+    
+    updateBadge(alertCount);
+    return alertCount;
+  } catch (error) {
+    console.error('Error updating badge from watchlist:', error);
+    return 0;
+  }
 }
 
 // Format price display
@@ -398,4 +596,58 @@ function formatPrice(price) {
 // Format price with exact numbers and commas
 function formatPriceExact(price) {
   return price.toLocaleString();
+}
+
+// Default settings
+const defaultSettings = {
+  updateInterval: 5, // minutes
+  autoRefresh: true,
+  backgroundUpdates: true,
+  desktopNotifications: true,
+  soundAlerts: true, // Changed to true
+  alertDuration: 0, // Changed to 0 (persistent until dismissed)
+  notificationLimit: 10,
+  priceFormat: 'gp', // Changed to 'gp' for detailed format
+  sortOrder: 'date-added', // Changed to date-added
+  showHistory: false,
+  compactView: false,
+  defaultAlertType: 'both',
+  alertThreshold: 10,
+  snoozeDuration: 900000,
+  alertColorHigh: '#27ae60',
+  alertColorLow: '#e74c3c',
+  darkMode: true,
+  autoRemoveDays: 0
+};
+
+// Get settings from storage
+async function getSettings() {
+  try {
+    const result = await chrome.storage.sync.get('settings');
+    return { ...defaultSettings, ...(result.settings || {}) };
+  } catch (error) {
+    console.error('Error getting settings:', error);
+    return defaultSettings;
+  }
+}
+
+// Handle settings updates
+async function handleSettingsUpdate(newSettings) {
+  try {
+    const settings = { ...defaultSettings, ...newSettings };
+    
+    // Update alarm interval if changed
+    if (settings.updateInterval !== defaultSettings.updateInterval) {
+      chrome.alarms.clear('priceCheck');
+      chrome.alarms.create('priceCheck', { 
+        delayInMinutes: 1, 
+        periodInMinutes: settings.updateInterval 
+      });
+      console.log(`Price check interval updated to ${settings.updateInterval} minutes`);
+    }
+    
+    console.log('Settings updated:', settings);
+  } catch (error) {
+    console.error('Error handling settings update:', error);
+  }
 }
