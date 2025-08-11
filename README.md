@@ -4,10 +4,27 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 
 ## 🌟 Features
 
-- **📊 Real-time Price Tracking**: Automatically fetches live prices from the official RuneScape Grand Exchange
+- **📊 Re### 🛡️ Version 1.### ⚙️ Version 1.3.1
+- **FIXED**: Default Settings Initialization - Settings now properly initialize with correct default values on first install
+- **FIXED**: Settings Consistency - Fixed inconsistent fallback values across popup, background, and settings components
+- **FIXED**: Extension Startup - Settings are now properly initialized on both extension install and browser startup
+- **FIXED**: Settings Page - Settings page now saves default values if none exist previously
+- **FIXED**: Price Format Defaults - Corrected default price format from 'auto' to 'gp' throughout the extension
+- **CHANGED**: Settings Management - Unified settings retrieval with proper default handling across all components
+- **ENHANCED**: Background Script - Enhanced installation and startup handlers to ensure settings are always initialized
+- **IMPROVED**: Popup Interface - Improved settings loading with proper error handling and fallback to defaultsst)
+- **FIXED**: Content Security Policy violations causing extension errors
+- **IMPROVED**: Image error handling now complies with Chrome security standards
+- **ENHANCED**: Race condition protection for manual price threshold updates during background refresh
+- **FIXED**: Manual threshold changes no longer get overwritten by concurrent background price checks
+- **IMPROVED**: Notification creation with proper Chrome extension API compliance
+- **ENHANCED**: Better error handling with retry logic for failed price fetching (5xx server errors)
+- **FIXED**: Removed invalid "action" permission from manifest that was causing startup errors
+- **IMPROVED**: Conflict resolution system ensures manual updates persist during background operationsrice Tracking**: Automatically fetches live prices from the official RuneScape Grand Exchange
 - **🔔 Smart Price Alerts**: Set high and low price thresholds with desktop notifications
-- **⏰ Background Monitoring**: Continuous price checking every 1-60 minutes (configurable)
+- **Background Monitoring**: Continuous price checking every 1-60 minutes (configurable)
 - **🎯 Easy Item Management**: Add items directly from RS item pages or through the popup
+- **🖼️ Item Images**: Display official RuneScape item icons in your watchlist for easy identification
 - **⚙️ Comprehensive Settings**: Customize update intervals, notifications, display options, and more (v1.0.1: ALL SETTINGS NOW FUNCTIONAL!)
 - **💾 Cross-Device Sync**: Watchlist and thresholds automatically sync across all your Chrome browsers via Google account
 - **🖥️ Compact View**: Space-efficient layout option to view more items at once
@@ -289,47 +306,96 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ## 🔄 Changelog
 
-### Version 1.0.2 (Latest)
-- **🔄 NEW**: Cross-device sync - watchlist and thresholds automatically sync across all your Chrome browsers
-- **☁️ ENHANCED**: Google account integration for seamless multi-computer access
-- **🔧 IMPROVED**: Automatic migration from local to sync storage for existing users
-- **📱 NEW**: Add items on one device, get alerts on another - full synchronization
-- **🔒 ENHANCED**: Privacy-first sync using Chrome's built-in Google sync (no external servers)
-- **📤 NEW**: Enhanced JSON export/import for browsers without Chrome sync (Vivaldi, Brave, Opera)
-- **💾 IMPROVED**: One-click backup and restore functionality with detailed progress messages
-- **🔄 NEW**: Cross-browser compatibility - transfer watchlists between any Chromium browser
+### Version 1.3.2 (Latest)
+- **�️ FIXED**: Content Security Policy violations causing extension errors
+- **🖼️ IMPROVED**: Image error handling now complies with Chrome security standards
+- **🔄 ENHANCED**: Race condition protection for manual price threshold updates during background refresh
+- **⚙️ FIXED**: Manual threshold changes no longer get overwritten by concurrent background price checks
+- **IMPROVED**: Notification creation with proper Chrome extension API compliance
+- **ENHANCED**: Better error handling with retry logic for failed price fetching (5xx server errors)
+- **📱 FIXED**: Removed invalid "action" permission from manifest that was causing startup errors
+- **🎯 IMPROVED**: Conflict resolution system ensures manual updates persist during background operations
 
-### Version 1.0.1
-- **✨ NEW**: Full settings integration - all settings are now functional!
-- **💰 ENHANCED**: Price format settings now work throughout the extension (gp, k, m, auto)
-- **🔔 ENHANCED**: Notification duration control (1-30 seconds or persistent until dismissed)
-- **🚨 ENHANCED**: Notification rate limiting (1-50 notifications per hour)
-- **🔇 NEW**: Sound alert toggle - control notification sounds on/off
-- **📋 NEW**: Watchlist sort options fully implemented (6 different sorting methods)
-- **🗑️ NEW**: Auto-remove functionality - automatically remove items after alert triggers
-- **⚡ IMPROVED**: Better async/await handling for smoother performance
-- **🐛 FIXED**: All previously unwired settings are now fully functional
-- **📝 ENHANCED**: Improved logging for better debugging and monitoring
+### Version 1.3.1
+- **🛠️ FIXED**: Default Settings Initialization - Settings now properly initialize with correct default values on first install
+- **⚙️ FIXED**: Settings Consistency - Fixed inconsistent fallback values across popup, background, and settings components
+- **🚀 FIXED**: Extension Startup - Settings are now properly initialized on both extension install and browser startup
+- **FIXED**: Settings Page - Settings page now saves default values if none exist previously
+- **💰 FIXED**: Price Format Defaults - Corrected default price format from 'auto' to 'gp' throughout the extension
+- **🔧 CHANGED**: Settings Management - Unified settings retrieval with proper default handling across all components
+- **🖥️ ENHANCED**: Background Script - Enhanced installation and startup handlers to ensure settings are always initialized
+- **IMPROVED**: Popup Interface - Improved settings loading with proper error handling and fallback to defaults
 
-### Version 1.0.0 (Chrome Web Store Release)
-- **🎉 PUBLISHED**: Now available on Chrome Web Store at [pricetracker.snc.guru](https://pricetracker.snc.guru)
-- **NEW**: Comprehensive settings page with 20+ configuration options
-- **NEW**: Compact view mode for space-efficient item display
-- **NEW**: Data export/import functionality
-- **NEW**: Configurable update intervals (1-60 minutes)
-- **NEW**: Advanced notification controls with limits and duration settings
-- **NEW**: Multiple price display formats (gp, k, m, auto)
-- **NEW**: Sort options for watchlist items
-- **NEW**: Real-time price fetching from official RuneScape pages
-- **NEW**: Background price monitoring with Chrome alarms
-- **NEW**: Desktop notifications for price alerts
-- **NEW**: Visual alert indicators in popup interface
-- **FEATURE**: Enhanced price fetching with multiple fallback methods
-- **FEATURE**: Better error handling and retry logic
-- **FEATURE**: Responsive UI with RuneScape-themed design
-- **FEATURE**: Settings persist and sync across sessions
-- **FEATURE**: Alert colors (red for low, green for high)
-- **FEATURE**: Complete watchlist functionality with item management
+### 🎨 Version 1.3.0
+- **NEW**: Item Images - Watchlist items now display official RuneScape Grand Exchange item images for easy visual identification
+- **NEW**: Image Support in Both Views - Images appear in both compact and full view modes with appropriate sizing
+- **NEW**: Automatic Image URL Generation - Extension automatically generates image URLs for items using RuneScape's standard pattern
+- **NEW**: Current Page Item Images - Item images also appear when viewing an item page with the "Add to Watchlist" section
+- **NEW**: Fallback Image Handling - If an image fails to load, it gracefully hides without breaking the layout
+- **CHANGED**: Enhanced Visual Layout - Watchlist items now have improved layouts to accommodate item images
+- **IMPROVED**: Content Script Improvements - Enhanced item data extraction to include image URLs from Grand Exchange pages
+- **UPDATED**: Popup Layout Updates - Redesigned item display to show images alongside item names and prices
+
+### 🔔 Version 1.2.0
+- **NEW**: Persistent Browser Notifications - Notifications now require manual dismissal using `requireInteraction: true`
+- **NEW**: Extension Badge Counter - Red badge on extension icon shows count of items exceeding thresholds
+- **NEW**: High Priority Notifications - Notifications use priority level 2 for better visibility
+- **NEW**: Dynamic Alert Counting - Real-time counting of items that have crossed their price thresholds
+- **NEW**: Enhanced Visual Alerts - Popup items with alerts now have pulsing borders and prominent styling
+- **NEW**: Alert Status Sorting - Items with active alerts are automatically sorted to the top of the watchlist
+- **NEW**: Badge Management - Badge automatically updates when items are added/removed or thresholds change
+- **NEW**: Notification Click Handling - Clicking notifications dismisses them properly
+- **FIXED**: Track Button Positioning - Fixed button being hidden behind Grand Exchange header
+- **IMPROVED**: Dynamic Header Detection - Button now intelligently positions based on detected header height
+- **FIXED**: Message Positioning - Success/error messages now appear below the track button instead of overlapping
+- **ENHANCED**: Alert Item Styling - Items exceeding thresholds now have more prominent visual indicators
+- **UPDATED**: Watchlist Title - Shows alert count when items have active alerts (e.g., "Your Watchlist (3 alerts)")
+- **FIXED**: Button Visibility - "Track this item" button no longer hidden by page header
+- **FIXED**: Notification Persistence - Notifications no longer auto-dismiss, requiring user interaction
+- **FIXED**: Badge Updates - Extension badge properly reflects current alert state
+- **IMPROVED**: Visual Feedback - Clear indication when items cross price thresholds
+
+### ⭐ Version 1.1.0
+- **NEW**: Basic notification system for price alerts
+- **NEW**: Watchlist management with add/remove functionality
+- **NEW**: Price threshold setting (high/low alerts)
+- **NEW**: Periodic price checking every 5 minutes
+- **NEW**: Item tracking from Grand Exchange pages
+- **NEW**: Popup interface for managing tracked items
+- **NEW**: Content script injection on RuneScape Grand Exchange pages
+- **NEW**: Background service worker for continuous price monitoring
+- **NEW**: Local storage for watchlist persistence
+- **NEW**: Price extraction from RuneScape item pages
+- **NEW**: Manual price refresh functionality
+
+### 🎉 Version 1.0.0
+- **NEW**: Initial release of RS Grand Exchange Price Tracker
+- **NEW**: Basic extension structure and manifest
+- **NEW**: Content script for item page detection
+- **NEW**: Background script foundation
+- **NEW**: Popup interface foundation
+
+### ☁️ Version 1.0.2
+- **NEW**: Cross-device sync - watchlist and thresholds automatically sync across all your Chrome browsers
+- **ENHANCED**: Google account integration for seamless multi-computer access
+- **IMPROVED**: Automatic migration from local to sync storage for existing users
+- **NEW**: Add items on one device, get alerts on another - full synchronization
+- **ENHANCED**: Privacy-first sync using Chrome's built-in Google sync (no external servers)
+- **NEW**: Enhanced JSON export/import for browsers without Chrome sync (Vivaldi, Brave, Opera)
+- **IMPROVED**: One-click backup and restore functionality with detailed progress messages
+- **NEW**: Cross-browser compatibility - transfer watchlists between any Chromium browser
+
+### 🔧 Version 1.0.1
+- **NEW**: Full settings integration - all settings are now functional!
+- **ENHANCED**: Price format settings now work throughout the extension (gp, k, m, auto)
+- **ENHANCED**: Notification duration control (1-30 seconds or persistent until dismissed)
+- **ENHANCED**: Notification rate limiting (1-50 notifications per hour)
+- **NEW**: Sound alert toggle - control notification sounds on/off
+- **NEW**: Watchlist sort options fully implemented (6 different sorting methods)
+- **NEW**: Auto-remove functionality - automatically remove items after alert triggers
+- **IMPROVED**: Better async/await handling for smoother performance
+- **FIXED**: All previously unwired settings are now fully functional
+- **ENHANCED**: Improved logging for better debugging and monitoring
 
 ## 🛠️ Development
 

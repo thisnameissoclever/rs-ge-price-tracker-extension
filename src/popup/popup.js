@@ -1,4 +1,38 @@
 // Popup script for RS Grand Exchange Price Tracker
+
+// Default settings (should match background.js)
+const DEFAULT_SETTINGS = {
+    updateInterval: 5,
+    autoRefresh: true,
+    backgroundUpdates: true,
+    desktopNotifications: true,
+    soundAlerts: true,
+    alertDuration: 0,
+    notificationLimit: 10,
+    priceFormat: 'gp',
+    sortOrder: 'date-added',
+    showHistory: false,
+    compactView: false,
+    defaultAlertType: 'both',
+    alertThreshold: 10,
+    snoozeDuration: 900000,
+    alertColorHigh: '#27ae60',
+    alertColorLow: '#e74c3c',
+    darkMode: true,
+    autoRemoveDays: 0
+};
+
+// Get settings with proper defaults
+async function getSettings() {
+    try {
+        const result = await chrome.storage.sync.get('settings');
+        return { ...DEFAULT_SETTINGS, ...(result.settings || {}) };
+    } catch (error) {
+        console.error('Error getting settings:', error);
+        return DEFAULT_SETTINGS;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Popup loaded');
     
@@ -14,10 +48,14 @@ async function initializePopup() {
         // Load and display watchlist
         await loadWatchlist();
         
-        // Auto-refresh prices when popup opens
-        setTimeout(() => {
-            autoRefreshPrices();
-        }, 500); // Small delay to let UI load first
+        // Check if auto-refresh is enabled before auto-refreshing
+        const settings = await getSettings();
+        if (settings.autoRefresh) {
+            // Auto-refresh prices when popup opens
+            setTimeout(() => {
+                autoRefreshPrices();
+            }, 500); // Small delay to let UI load first
+        }
         
         // Add refresh button event listener
         const refreshBtn = document.getElementById('refresh-prices-btn');
@@ -68,10 +106,29 @@ async function showCurrentPageSection(itemData) {
     const infoDiv = document.getElementById('current-item-info');
     const addBtn = document.getElementById('add-current-btn');
     
+    // Generate image URL if not present
+    const imageUrl = itemData.imageUrl || `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${itemData.id}`;
+    const imageHtml = imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(itemData.name)}" class="item-image" style="margin-right: 10px;" data-fallback="hide">` : '';
+    
     infoDiv.innerHTML = `
-        <strong>${itemData.name}</strong><br>
-        ${itemData.currentPrice ? `Current Price: ${formatPriceExact(itemData.currentPrice)} gp` : 'Price: Unknown'}
+        <div style="display: flex; align-items: center; margin-bottom: 8px;">
+            ${imageHtml}
+            <div>
+                <strong>${escapeHtml(itemData.name)}</strong><br>
+                ${itemData.currentPrice ? `Current Price: ${formatPriceExact(itemData.currentPrice)} gp` : 'Price: Unknown'}
+            </div>
+        </div>
     `;
+    
+    // Add error handling for image loading
+    if (imageUrl) {
+        const img = infoDiv.querySelector('img[data-fallback="hide"]');
+        if (img) {
+            img.addEventListener('error', function() {
+                this.style.display = 'none';
+            });
+        }
+    }
     
     // Check if item is already in watchlist
     try {
@@ -261,21 +318,19 @@ async function displayWatchlist(watchlist) {
     
     // Load settings to check compact view, price format, and sort order
     try {
-        const result = await chrome.storage.sync.get(['settings', 'sortOrder']);
-        const settings = result.settings || {};
-        const isCompactView = settings.compactView || false;
-        const priceFormat = settings.priceFormat || 'auto';
-        const sortOrder = result.sortOrder || 'alerts-first';
+        const settings = await getSettings();
+        const result = await chrome.storage.sync.get('sortOrder');
+        const sortOrder = result.sortOrder || settings.sortOrder;
         
-        renderWatchlistItems(items, container, isCompactView, priceFormat, sortOrder);
+        renderWatchlistItems(items, container, settings.compactView, settings.priceFormat, sortOrder);
     } catch (error) {
         console.error('Error loading settings:', error);
-        // Fallback to normal view
-        renderWatchlistItems(items, container, false, 'auto', 'alerts-first');
+        // Fallback to defaults
+        renderWatchlistItems(items, container, DEFAULT_SETTINGS.compactView, DEFAULT_SETTINGS.priceFormat, DEFAULT_SETTINGS.sortOrder);
     }
 }
 
-function renderWatchlistItems(items, container, isCompactView, priceFormat = 'auto', sortOrder = 'alerts-first') {
+function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp', sortOrder = 'date-added') {
     
     // Count items with alerts for header display
     let alertCount = 0;
@@ -341,8 +396,16 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'au
     
     container.innerHTML = items.map(item => createItemHTML(item, isCompactView, priceFormat)).join('');
     
-    // Add event listeners
+    // Add event listeners for images and buttons
     items.forEach(item => {
+        // Image error handling
+        const img = document.querySelector(`[data-item-id="${item.id}"] img[data-fallback="hide"]`);
+        if (img) {
+            img.addEventListener('error', function() {
+                this.style.display = 'none';
+            });
+        }
+        
         // Remove button
         const removeBtn = document.getElementById(`remove-${item.id}`);
         if (removeBtn) {
@@ -357,12 +420,17 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'au
     });
 }
 
-function createItemHTML(item, isCompactView = false, priceFormat = 'auto') {
+function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
     const lastChecked = item.lastChecked ? 
         new Date(item.lastChecked).toLocaleString() : 'Never';
     
     const addedAt = item.addedAt ? 
         new Date(item.addedAt).toLocaleDateString() : 'Unknown';
+    
+    // Generate image URL if not present
+    if (!item.imageUrl && item.id) {
+        item.imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${item.id}`;
+    }
         
     // Calculate time since last check
     let timeSinceCheck = 'Never';
@@ -400,31 +468,37 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'auto') {
     
     if (isCompactView) {
         // Compact view - single line with essential info only
+        const imageHtml = item.imageUrl ? 
+            `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" class="compact-item-image" data-fallback="hide">` : '';
+            
         return `
             <div class="item compact-item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
-                <div class="compact-content">
-                    <div class="compact-name-price">
-                        <a href="https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${item.id}" 
-                           target="_blank" 
-                           class="item-link ${alertStatus !== 'normal' ? 'item-link-alert' : ''}">
-                            ${escapeHtml(item.name)}
-                        </a>
-                        ${alertIndicator}
-                        <span class="compact-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
-                            ${item.currentPrice ? formatPrice(item.currentPrice, priceFormat) : 'Unknown'}
-                        </span>
-                    </div>
-                    <div class="compact-controls">
-                        <input type="number" id="low-${item.id}" placeholder="Low" 
-                               value="${item.lowThreshold || ''}" min="0"
-                               class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
-                               title="Low alert threshold">
-                        <input type="number" id="high-${item.id}" placeholder="High" 
-                               value="${item.highThreshold || ''}" min="0"
-                               class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
-                               title="High alert threshold">
-                        <button id="update-${item.id}" class="compact-update-btn ${alertStatus !== 'normal' ? 'update-btn-alert' : ''}" title="Update alerts">↑</button>
-                        <button id="remove-${item.id}" class="compact-remove-btn" title="Remove from watchlist">×</button>
+                <div class="compact-content ${item.imageUrl ? 'compact-content-with-image' : ''}">
+                    ${imageHtml}
+                    <div class="compact-info">
+                        <div class="compact-name-price">
+                            <a href="https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${item.id}" 
+                               target="_blank" 
+                               class="item-link ${alertStatus !== 'normal' ? 'item-link-alert' : ''}">
+                                ${escapeHtml(item.name)}
+                            </a>
+                            ${alertIndicator}
+                            <span class="compact-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
+                                ${item.currentPrice ? formatPrice(item.currentPrice, priceFormat) : 'Unknown'}
+                            </span>
+                        </div>
+                        <div class="compact-controls">
+                            <input type="number" id="low-${item.id}" placeholder="Low" 
+                                   value="${item.lowThreshold || ''}" min="0"
+                                   class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
+                                   title="Low alert threshold">
+                            <input type="number" id="high-${item.id}" placeholder="High" 
+                                   value="${item.highThreshold || ''}" min="0"
+                                   class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
+                                   title="High alert threshold">
+                            <button id="update-${item.id}" class="compact-update-btn ${alertStatus !== 'normal' ? 'update-btn-alert' : ''}" title="Update alerts">↑</button>
+                            <button id="remove-${item.id}" class="compact-remove-btn" title="Remove from watchlist">×</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -432,16 +506,22 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'auto') {
     }
     
     // Full view (original)
+    const imageHtml = item.imageUrl ? 
+        `<img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" class="item-image" data-fallback="hide">` : '';
+    
     return `
         <div class="item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
-            <div class="item-header">
-                <div class="item-name" title="${escapeHtml(item.name)}">
-                    <a href="https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${item.id}" 
-                       target="_blank" 
-                       class="item-link ${alertStatus !== 'normal' ? 'item-link-alert' : ''}">
-                        ${escapeHtml(item.name)}
-                    </a>
-                    ${alertIndicator}
+            <div class="${item.imageUrl ? 'item-header-with-image' : 'item-header'}">
+                ${imageHtml}
+                <div class="item-info">
+                    <div class="item-name" title="${escapeHtml(item.name)}">
+                        <a href="https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${item.id}" 
+                           target="_blank" 
+                           class="item-link ${alertStatus !== 'normal' ? 'item-link-alert' : ''}">
+                            ${escapeHtml(item.name)}
+                        </a>
+                        ${alertIndicator}
+                    </div>
                 </div>
                 <button id="remove-${item.id}" class="remove-btn" title="Remove from watchlist">×</button>
             </div>
@@ -476,7 +556,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'auto') {
     `;
 }
 
-function refreshSingleItem(updatedItem) {
+async function refreshSingleItem(updatedItem) {
     // Find the existing item element
     const existingItemElement = document.querySelector(`[data-item-id="${updatedItem.id}"]`);
     if (!existingItemElement) {
@@ -487,8 +567,11 @@ function refreshSingleItem(updatedItem) {
     // Check if we're in compact view
     const isCompactView = existingItemElement.classList.contains('compact-item');
     
-    // Create new HTML for the item
-    const newItemHTML = createItemHTML(updatedItem, isCompactView);
+    // Get current settings for proper formatting
+    const settings = await getSettings();
+    
+    // Create new HTML for the item with current settings
+    const newItemHTML = createItemHTML(updatedItem, isCompactView, settings.priceFormat);
     
     // Create a temporary container to parse the new HTML
     const tempDiv = document.createElement('div');
@@ -499,6 +582,14 @@ function refreshSingleItem(updatedItem) {
     existingItemElement.parentNode.replaceChild(newItemElement, existingItemElement);
     
     // Re-attach event listeners for this specific item
+    // Image error handling
+    const img = newItemElement.querySelector('img[data-fallback="hide"]');
+    if (img) {
+        img.addEventListener('error', function() {
+            this.style.display = 'none';
+        });
+    }
+    
     const removeBtn = document.getElementById(`remove-${updatedItem.id}`);
     if (removeBtn) {
         removeBtn.addEventListener('click', () => removeItem(updatedItem.id));
@@ -573,7 +664,7 @@ async function updateThresholds(itemId) {
             if (updatedItemResponse.success) {
                 const updatedItem = updatedItemResponse.data[itemId];
                 if (updatedItem) {
-                    refreshSingleItem(updatedItem);
+                    await refreshSingleItem(updatedItem);
                 }
             }
             
@@ -589,7 +680,14 @@ async function updateThresholds(itemId) {
         
     } catch (error) {
         console.error('Error updating thresholds:', error);
-        showError('Failed to update alerts: ' + error.message);
+        
+        // Provide more specific error message for concurrent update conflicts
+        let errorMessage = 'Failed to update alerts: ' + error.message;
+        if (error.message.includes('overwritten') || error.message.includes('concurrent')) {
+            errorMessage = 'Update conflict detected. Please try again in a moment.';
+        }
+        
+        showError(errorMessage);
         
         updateBtn.textContent = 'Update Alerts';
         updateBtn.disabled = false;
@@ -603,7 +701,7 @@ function sendMessage(message) {
     });
 }
 
-function formatPrice(price, format = 'auto') {
+function formatPrice(price, format = 'gp') {
     if (!price || price === null || price === undefined) return 'Unknown';
     
     switch (format) {

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Image URLs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-item {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .test-item img {
+            width: 32px;
+            height: 32px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .item-info {
+            flex: 1;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .note {
+            background: #e3f2fd;
+            padding: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #2196f3;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>RuneScape Item Image Test</h1>
+    
+    <div class="note">
+        <strong>Note:</strong> This page tests the image URLs that the extension will use for various RuneScape items. 
+        If images don't load, the extension will gracefully hide them.
+    </div>
+
+    <!-- Test some common RuneScape items -->
+    <div class="test-item">
+        <img src="https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=1" 
+             alt="Bronze dagger" 
+             onerror="this.style.display='none'">
+        <div class="item-info">
+            <strong>Bronze dagger</strong><br>
+            Item ID: 1 (Classic first item)
+        </div>
+    </div>
+
+    <div class="test-item">
+        <img src="https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=4151" 
+             alt="Abyssal whip" 
+             onerror="this.style.display='none'">
+        <div class="item-info">
+            <strong>Abyssal whip</strong><br>
+            Item ID: 4151 (Popular item)
+        </div>
+    </div>
+
+    <div class="test-item">
+        <img src="https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=21787" 
+             alt="Armadyl godsword" 
+             onerror="this.style.display='none'">
+        <div class="item-info">
+            <strong>Armadyl godsword</strong><br>
+            Item ID: 21787 (High-value item)
+        </div>
+    </div>
+
+    <div class="test-item">
+        <img src="https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=2" 
+             alt="Bronze sword" 
+             onerror="this.style.display='none'">
+        <div class="item-info">
+            <strong>Bronze sword</strong><br>
+            Item ID: 2 (Another basic item)
+        </div>
+    </div>
+
+    <div class="test-item">
+        <img src="https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=995" 
+             alt="Coins" 
+             onerror="this.style.display='none'">
+        <div class="item-info">
+            <strong>Coins</strong><br>
+            Item ID: 995 (Gold coins)
+        </div>
+    </div>
+
+    <script>
+        // Count loaded images after page loads
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                const images = document.querySelectorAll('.test-item img');
+                const visibleImages = Array.from(images).filter(img => img.style.display !== 'none');
+                console.log(`Images loaded: ${visibleImages.length} out of ${images.length}`);
+                
+                // Add a summary to the page
+                const summary = document.createElement('div');
+                summary.className = 'note';
+                summary.innerHTML = `<strong>Results:</strong> ${visibleImages.length} out of ${images.length} images loaded successfully.`;
+                document.body.appendChild(summary);
+            }, 2000); // Wait 2 seconds for images to load
+        });
+    </script>
+</body>
+</html>

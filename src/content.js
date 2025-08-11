@@ -178,7 +178,39 @@ function extractItemData() {
       }
     }
     
-    console.log('Final extracted data:', { itemId, itemName, currentPrice });
+    // Extract item image URL
+    let imageUrl = null;
+    
+    try {
+      // First, try to find the image directly on the page
+      const itemImages = document.querySelectorAll('img');
+      for (const img of itemImages) {
+        const src = img.src;
+        // Look for RuneScape item image patterns
+        if (src && (src.includes('itemdb_rs') || src.includes('item') || src.includes('obj'))) {
+          // Check if this looks like a main item image (not icons or UI elements)
+          if (img.width > 30 && img.height > 30) {
+            imageUrl = src;
+            console.log('Found item image on page:', imageUrl);
+            break;
+          }
+        }
+      }
+      
+      // Fallback: construct image URL using standard RuneScape patterns
+      if (!imageUrl) {
+        // RuneScape uses predictable patterns for item images
+        // Try the most common current pattern first
+        imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${itemId}`;
+        console.log('Using constructed image URL:', imageUrl);
+      }
+    } catch (error) {
+      console.error('Error extracting image URL:', error);
+      // Still set a fallback URL even if there was an error
+      imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${itemId}`;
+    }
+    
+    console.log('Final extracted data:', { itemId, itemName, currentPrice, imageUrl });
     
     if (!itemName || !itemId) {
       console.log('Missing required item data - name:', itemName, 'id:', itemId);
@@ -189,7 +221,8 @@ function extractItemData() {
       id: itemId,
       name: itemName,
       url: window.location.href,
-      currentPrice: currentPrice
+      currentPrice: currentPrice,
+      imageUrl: imageUrl
     };
     
   } catch (error) {

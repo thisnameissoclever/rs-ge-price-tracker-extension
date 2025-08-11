@@ -2,13 +2,32 @@
 console.log('Background script loaded');
 
 // Initialize extension
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener(async () => {
   console.log('Extension installed');
   
-  // Create alarm for periodic price checking (every 5 minutes)
+  // Initialize default settings on first install
+  try {
+    const result = await chrome.storage.sync.get('settings');
+    if (!result.settings) {
+      console.log('First install: Initializing default settings');
+      await chrome.storage.sync.set({ settings: defaultSettings });
+      console.log('Default settings saved:', defaultSettings);
+    } else {
+      console.log('Settings already exist:', result.settings);
+      // Merge any new default settings with existing ones
+      const mergedSettings = { ...defaultSettings, ...result.settings };
+      await chrome.storage.sync.set({ settings: mergedSettings });
+      console.log('Settings updated with new defaults:', mergedSettings);
+    }
+  } catch (error) {
+    console.error('Error initializing settings:', error);
+  }
+  
+  // Create alarm for periodic price checking using settings
+  const settings = await getSettings();
   chrome.alarms.create('priceCheck', { 
     delayInMinutes: 1, 
-    periodInMinutes: 5 
+    periodInMinutes: settings.updateInterval || 5
   });
   
   // Update badge on install
@@ -16,8 +35,20 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 
 // Update badge on startup
-chrome.runtime.onStartup.addListener(() => {
+chrome.runtime.onStartup.addListener(async () => {
   console.log('Extension started');
+  
+  // Ensure settings are initialized on startup
+  try {
+    const result = await chrome.storage.sync.get('settings');
+    if (!result.settings) {
+      console.log('Extension startup: Initializing default settings');
+      await chrome.storage.sync.set({ settings: defaultSettings });
+    }
+  } catch (error) {
+    console.error('Error initializing settings on startup:', error);
+  }
+  
   updateBadgeFromWatchlist();
 });
 
@@ -96,9 +127,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Handle alarms for periodic price checking
-chrome.alarms.onAlarm.addListener((alarm) => {
+chrome.alarms.onAlarm.addListener(async (alarm) => {
   if (alarm.name === 'priceCheck') {
-    checkPricesAndAlert();
+    // Check if background updates are enabled
+    const settings = await getSettings();
+    if (settings.backgroundUpdates) {
+      checkPricesAndAlert();
+    } else {
+      console.log('Background updates disabled - skipping price check');
+    }
   }
 });
 
@@ -145,7 +182,27 @@ async function addItemToWatchlist(itemData) {
       itemName = `Item ${itemId}`; // Fallback name
     }
     
-    console.log('✏️ Creating watchlist entry for:', { itemId, itemName, currentPrice: itemData.currentPrice });
+    console.log('✏️ Creating watchlist entry for:', { itemId, itemName, currentPrice: itemData.currentPrice, imageUrl: itemData.imageUrl });
+    
+    // Get settings for default alert behavior
+    const settings = await getSettings();
+    let lowThreshold = null;
+    let highThreshold = null;
+    
+    // Apply default alert thresholds based on current price and defaultAlertType setting
+    if (itemData.currentPrice && settings.defaultAlertType !== 'none') {
+      const price = itemData.currentPrice;
+      const percentage = settings.alertThreshold || 10; // Use alertThreshold setting for percentage
+      
+      if (settings.defaultAlertType === 'below' || settings.defaultAlertType === 'both') {
+        lowThreshold = Math.floor(price * (1 - percentage / 100));
+      }
+      if (settings.defaultAlertType === 'above' || settings.defaultAlertType === 'both') {
+        highThreshold = Math.ceil(price * (1 + percentage / 100));
+      }
+      
+      console.log(`Applied default thresholds (${settings.defaultAlertType}, ${percentage}%): low=${lowThreshold}, high=${highThreshold}`);
+    }
     
     watchlist[itemId] = {
       id: itemId,
@@ -153,8 +210,9 @@ async function addItemToWatchlist(itemData) {
       url: fetchUrl, // Use the clean URL for fetching
       originalUrl: itemData.url, // Keep the original URL for reference
       currentPrice: itemData.currentPrice || null,
-      lowThreshold: null,
-      highThreshold: null,
+      imageUrl: itemData.imageUrl || null, // Store the image URL
+      lowThreshold: lowThreshold,
+      highThreshold: highThreshold,
       lastChecked: Date.now(),
       addedAt: Date.now()
     };
@@ -259,20 +317,47 @@ async function removeItemFromWatchlist(itemId) {
   }
 }
 
-// Update item thresholds
+// Update item thresholds with retry on conflict
 async function updateItemThresholds(itemId, lowPrice, highPrice) {
-  try {
-    const watchlist = await getWatchlist();
-    
-    if (watchlist[itemId]) {
-      watchlist[itemId].lowThreshold = lowPrice;
-      watchlist[itemId].highThreshold = highPrice;
-      await chrome.storage.sync.set({ watchlist });
-      console.log('Thresholds updated for item:', itemId);
+  const maxRetries = 3;
+  let retries = 0;
+  
+  while (retries < maxRetries) {
+    try {
+      const watchlist = await getWatchlist();
+      
+      if (watchlist[itemId]) {
+        watchlist[itemId].lowThreshold = lowPrice;
+        watchlist[itemId].highThreshold = highPrice;
+        
+        // Use a unique timestamp to detect conflicts
+        const updateTimestamp = Date.now();
+        watchlist[itemId].lastThresholdUpdate = updateTimestamp;
+        
+        await chrome.storage.sync.set({ watchlist });
+        
+        // Verify the update wasn't overwritten by checking the timestamp
+        await new Promise(resolve => setTimeout(resolve, 50)); // Small delay
+        const verifyWatchlist = await getWatchlist();
+        
+        if (verifyWatchlist[itemId] && verifyWatchlist[itemId].lastThresholdUpdate === updateTimestamp) {
+          console.log('Thresholds updated successfully for item:', itemId);
+          return; // Success
+        } else {
+          throw new Error('Update was overwritten by concurrent operation');
+        }
+      } else {
+        throw new Error('Item not found in watchlist');
+      }
+    } catch (error) {
+      retries++;
+      if (retries >= maxRetries) {
+        console.error('Error updating thresholds after retries:', error);
+        throw error;
+      }
+      console.warn(`Threshold update attempt ${retries} failed, retrying:`, error.message);
+      await new Promise(resolve => setTimeout(resolve, 100 * retries)); // Exponential backoff
     }
-  } catch (error) {
-    console.error('Error updating thresholds:', error);
-    throw error;
   }
 }
 
@@ -287,6 +372,7 @@ async function checkPricesAndAlert() {
   try {
     console.log('Starting price check cycle...');
     const watchlist = await getWatchlist();
+    const settings = await getSettings();
     
     const itemIds = Object.keys(watchlist);
     console.log(`Checking prices for ${itemIds.length} items`);
@@ -300,8 +386,27 @@ async function checkPricesAndAlert() {
     let alertCount = 0;
     let itemsToRemove = []; // Track items to auto-remove
     
-    // Check each item
-    for (const itemId of itemIds) {
+    // Check for time-based auto-removal first
+    if (settings.autoRemoveDays > 0) {
+      const cutoffTime = Date.now() - (settings.autoRemoveDays * 24 * 60 * 60 * 1000);
+      for (const itemId of itemIds) {
+        const item = watchlist[itemId];
+        if (item.addedAt && item.addedAt < cutoffTime) {
+          console.log(`Auto-removing old item: ${item.name} (added ${Math.floor((Date.now() - item.addedAt) / (24 * 60 * 60 * 1000))} days ago)`);
+          itemsToRemove.push(itemId);
+          delete watchlist[itemId];
+        }
+      }
+      
+      // Save watchlist if items were removed
+      if (itemsToRemove.length > 0) {
+        await chrome.storage.sync.set({ watchlist });
+        console.log(`Auto-removed ${itemsToRemove.length} old items`);
+      }
+    }
+    
+    // Check each remaining item
+    for (const itemId of Object.keys(watchlist)) {
       const item = watchlist[itemId];
       console.log(`Checking price for ${item.name} (ID: ${itemId})`);
       
@@ -321,24 +426,39 @@ async function checkPricesAndAlert() {
           let notificationSent = false;
           let shouldAutoRemove = false;
           
-          // Load auto-remove setting
-          const autoRemoveResult = await chrome.storage.sync.get(['autoRemove']);
-          const autoRemove = autoRemoveResult.autoRemove || false;
+          // Load settings for auto-remove
+          const settings = await getSettings();
           
           if (item.lowThreshold && currentPrice <= item.lowThreshold) {
-            await sendNotification(`${item.name} - LOW PRICE ALERT!`, 
-              `Price dropped to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.lowThreshold)} gp)`,
-              'low');
-            notificationSent = true;
-            if (autoRemove) shouldAutoRemove = true;
+            // Check if item is snoozed
+            const now = Date.now();
+            if (!item.lastLowAlert || (now - item.lastLowAlert) >= settings.snoozeDuration) {
+              await sendNotification(`${item.name} - LOW PRICE ALERT!`, 
+                `Price dropped to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.lowThreshold)} gp)`,
+                'low');
+              notificationSent = true;
+              item.lastLowAlert = now; // Set snooze timestamp
+              // Auto-remove if autoRemoveDays is set to 0 (immediate removal)
+              if (settings.autoRemoveDays === 0) shouldAutoRemove = true;
+            } else {
+              console.log(`Low alert snoozed for ${item.name} (${Math.floor((settings.snoozeDuration - (now - item.lastLowAlert)) / 60000)} minutes remaining)`);
+            }
           }
           
           if (item.highThreshold && currentPrice >= item.highThreshold) {
-            await sendNotification(`${item.name} - HIGH PRICE ALERT!`, 
-              `Price rose to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.highThreshold)} gp)`,
-              'high');
-            notificationSent = true;
-            if (autoRemove) shouldAutoRemove = true;
+            // Check if item is snoozed
+            const now = Date.now();
+            if (!item.lastHighAlert || (now - item.lastHighAlert) >= settings.snoozeDuration) {
+              await sendNotification(`${item.name} - HIGH PRICE ALERT!`, 
+                `Price rose to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.highThreshold)} gp)`,
+                'high');
+              notificationSent = true;
+              item.lastHighAlert = now; // Set snooze timestamp
+              // Auto-remove if autoRemoveDays is set to 0 (immediate removal)  
+              if (settings.autoRemoveDays === 0) shouldAutoRemove = true;
+            } else {
+              console.log(`High alert snoozed for ${item.name} (${Math.floor((settings.snoozeDuration - (now - item.lastHighAlert)) / 60000)} minutes remaining)`);
+            }
           }
           
           // Auto-remove item if threshold triggered and setting enabled
@@ -352,11 +472,8 @@ async function checkPricesAndAlert() {
           if (!notificationSent && previousPrice && previousPrice > 0) {
             const changePercent = Math.abs((currentPrice - previousPrice) / previousPrice * 100);
             
-            // Load alert threshold setting
-            const thresholdResult = await chrome.storage.sync.get(['alertThreshold']);
-            const alertThreshold = thresholdResult.alertThreshold || 10; // Default 10%
-            
-            if (changePercent >= alertThreshold) {
+            // Use settings for alert threshold
+            if (changePercent >= settings.alertThreshold) {
               const direction = currentPrice > previousPrice ? 'increased' : 'decreased';
               await sendNotification(`${item.name} - Price Change`, 
                 `Price ${direction} ${changePercent.toFixed(1)}% to ${formatPriceExact(currentPrice)} gp`,
@@ -391,8 +508,35 @@ async function checkPricesAndAlert() {
     // Update badge with alert count
     updateBadge(alertCount);
     
-    // Save updated watchlist (with any auto-removed items)
-    await chrome.storage.sync.set({ watchlist });
+    // Save updated watchlist with conflict resolution
+    try {
+      // Get the latest watchlist to check for any manual threshold updates during price checking
+      const latestWatchlist = await getWatchlist();
+      
+      // Merge changes: preserve manual threshold updates, apply price updates
+      for (const itemId of Object.keys(watchlist)) {
+        if (latestWatchlist[itemId]) {
+          // If thresholds were updated manually during price check (newer lastThresholdUpdate),
+          // preserve the manual thresholds but apply price updates
+          const latestItem = latestWatchlist[itemId];
+          const ourItem = watchlist[itemId];
+          
+          if (latestItem.lastThresholdUpdate && 
+              (!ourItem.lastThresholdUpdate || latestItem.lastThresholdUpdate > ourItem.lastThresholdUpdate)) {
+            console.log(`Preserving manual threshold update for ${ourItem.name}`);
+            ourItem.lowThreshold = latestItem.lowThreshold;
+            ourItem.highThreshold = latestItem.highThreshold;
+            ourItem.lastThresholdUpdate = latestItem.lastThresholdUpdate;
+          }
+        }
+      }
+      
+      await chrome.storage.sync.set({ watchlist });
+    } catch (error) {
+      console.error('Error saving updated watchlist with conflict resolution:', error);
+      // Fallback to simple save
+      await chrome.storage.sync.set({ watchlist });
+    }
     
     if (itemsToRemove.length > 0) {
       console.log(`Price check cycle completed. ${itemsToRemove.length} items auto-removed, ${alertCount} remaining items have alerts.`);
@@ -413,13 +557,26 @@ async function fetchItemPrice(itemUrl, itemId) {
     // Construct the URL using the item ID to ensure we get the right page
     const baseUrl = `https://secure.runescape.com/m=itemdb_rs/viewitem?obj=${itemId}`;
     
-    // Fetch the item page HTML
-    const response = await fetch(baseUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    // Fetch the item page HTML with light retry on 5xx
+    const doFetch = async () => {
+      return fetch(baseUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+    };
+
+    let response = await doFetch();
+    if (!response.ok && response.status >= 500) {
+      // Retry up to 2 times on server errors like 504
+      for (let attempt = 1; attempt <= 2 && (!response.ok && response.status >= 500); attempt++) {
+        const backoff = 500 * attempt; // 0.5s, 1s
+        console.warn(`Fetch failed (${response.status}). Retrying in ${backoff}ms...`);
+        await new Promise(r => setTimeout(r, backoff));
+        response = await doFetch();
       }
-    });
-    
+    }
+
     if (!response.ok) {
       console.error(`Failed to fetch page: ${response.status} ${response.statusText}`);
       return null;
@@ -524,11 +681,17 @@ let notificationHistory = [];
 
 // Send notification
 async function sendNotification(title, message, alertType = 'alert') {
-  // Load notification settings
-  const result = await chrome.storage.sync.get(['notificationDuration', 'notificationLimit', 'soundAlerts']);
-  const notificationDuration = result.notificationDuration || 5; // Default 5 seconds
-  const notificationLimit = result.notificationLimit || 10; // Default 10 per hour
-  const soundAlerts = result.soundAlerts !== undefined ? result.soundAlerts : true; // Default true
+  // Load notification settings with proper defaults
+  const settings = await getSettings();
+  
+  if (settings.desktopNotifications === false) {
+    console.log('Desktop notifications disabled in settings. Skipping notification:', title);
+    return;
+  }
+  
+  const notificationDuration = settings.notificationDuration || settings.alertDuration || 5; // Default 5 seconds
+  const notificationLimit = settings.notificationLimit || 10; // Default 10 per hour
+  const soundAlerts = settings.soundAlerts;
   
   // Check rate limiting
   const now = Date.now();
@@ -559,26 +722,35 @@ async function sendNotification(title, message, alertType = 'alert') {
   // Set requireInteraction based on duration (0 = persistent)
   const requireInteraction = notificationDuration === 0;
   
-  chrome.notifications.create(notificationId, {
+  // Use absolute URL for icon to avoid resolution issues from service worker
+  const resolvedIconUrl = chrome.runtime.getURL(iconUrl);
+
+  // Note: chrome.notifications API doesn't support controlling sound via a 'silent' option.
+  // The 'silent' field belongs to the Web Notifications API, not chrome.notifications.
+  const options = {
     type: 'basic',
-    iconUrl: iconUrl,
+    iconUrl: resolvedIconUrl,
     title: title,
     message: message,
     requireInteraction: requireInteraction,
     priority: 2, // High priority
-    silent: !soundAlerts // Invert soundAlerts setting for silent property
-  }, (notificationId) => {
+    isClickable: true
+  };
+  
+  chrome.notifications.create(notificationId, options, (createdId) => {
     if (chrome.runtime.lastError) {
-      console.error('Error creating notification:', chrome.runtime.lastError);
-    } else {
-      console.log('Notification created:', notificationId, soundAlerts ? '(with sound)' : '(silent)');
-      
-      // Auto-close notification after specified duration (unless persistent)
-      if (notificationDuration > 0) {
-        setTimeout(() => {
-          chrome.notifications.clear(notificationId);
-        }, notificationDuration * 1000);
-      }
+      const err = chrome.runtime.lastError;
+      console.error('Error creating notification:', err.message || err);
+      return;
+    }
+    // Sound control isn't available via chrome.notifications; log setting for transparency
+    console.log('Notification created:', createdId, soundAlerts ? '(sound setting: on)' : '(sound setting: off - not controllable by API)');
+    
+    // Auto-close notification after specified duration (unless persistent)
+    if (notificationDuration > 0) {
+      setTimeout(() => {
+        chrome.notifications.clear(createdId);
+      }, notificationDuration * 1000);
     }
   });
 }
@@ -684,11 +856,32 @@ async function handleSettingsUpdate(newSettings) {
     // Update alarm interval if changed
     if (settings.updateInterval !== defaultSettings.updateInterval) {
       chrome.alarms.clear('priceCheck');
-      chrome.alarms.create('priceCheck', { 
-        delayInMinutes: 1, 
-        periodInMinutes: settings.updateInterval 
-      });
-      console.log(`Price check interval updated to ${settings.updateInterval} minutes`);
+      if (settings.backgroundUpdates) {
+        // Only create alarm if background updates are enabled
+        chrome.alarms.create('priceCheck', { 
+          delayInMinutes: 1, 
+          periodInMinutes: settings.updateInterval 
+        });
+        console.log(`Price check interval updated to ${settings.updateInterval} minutes`);
+      } else {
+        console.log('Background updates disabled - no alarm created');
+      }
+    }
+    
+    // If backgroundUpdates setting changed, handle alarm accordingly
+    if (newSettings.hasOwnProperty('backgroundUpdates')) {
+      if (settings.backgroundUpdates) {
+        // Enable background updates - create alarm
+        chrome.alarms.create('priceCheck', { 
+          delayInMinutes: 1, 
+          periodInMinutes: settings.updateInterval 
+        });
+        console.log('Background updates enabled - alarm created');
+      } else {
+        // Disable background updates - clear alarm
+        chrome.alarms.clear('priceCheck');
+        console.log('Background updates disabled - alarm cleared');
+      }
     }
     
     console.log('Settings updated:', settings);

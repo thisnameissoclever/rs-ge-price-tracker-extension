@@ -44,6 +44,12 @@ async function loadSettings() {
         const result = await chrome.storage.sync.get('settings');
         const settings = { ...defaultSettings, ...(result.settings || {}) };
         
+        // If no settings exist, save the defaults
+        if (!result.settings) {
+            console.log('No settings found, saving defaults');
+            await chrome.storage.sync.set({ settings: defaultSettings });
+        }
+        
         // Update all form elements with stored settings
         Object.keys(settings).forEach(key => {
             const element = document.getElementById(key);
@@ -60,6 +66,17 @@ async function loadSettings() {
     } catch (error) {
         console.error('Error loading settings:', error);
         showMessage('Error loading settings. Using defaults.', 'error');
+        // Still populate form with defaults on error
+        Object.keys(defaultSettings).forEach(key => {
+            const element = document.getElementById(key);
+            if (element) {
+                if (element.type === 'checkbox') {
+                    element.checked = defaultSettings[key];
+                } else {
+                    element.value = defaultSettings[key];
+                }
+            }
+        });
     }
 }
 
