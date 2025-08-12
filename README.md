@@ -306,24 +306,25 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ## 🔄 Changelog
 
-### Version 1.3.2 (Latest)
-- **�️ FIXED**: Content Security Policy violations causing extension errors
-- **🖼️ IMPROVED**: Image error handling now complies with Chrome security standards
-- **🔄 ENHANCED**: Race condition protection for manual price threshold updates during background refresh
-- **⚙️ FIXED**: Manual threshold changes no longer get overwritten by concurrent background price checks
+### 🛡️ Version 1.3.2 (Latest)
+- **FIXED**: Content Security Policy violations causing extension errors
+- **IMPROVED**: Image error handling now complies with Chrome security standards
+- **ENHANCED**: Race condition protection for manual price threshold updates during background refresh
+- **FIXED**: Manual threshold changes no longer get overwritten by concurrent background price checks
 - **IMPROVED**: Notification creation with proper Chrome extension API compliance
 - **ENHANCED**: Better error handling with retry logic for failed price fetching (5xx server errors)
-- **📱 FIXED**: Removed invalid "action" permission from manifest that was causing startup errors
-- **🎯 IMPROVED**: Conflict resolution system ensures manual updates persist during background operations
+- **FIXED**: Removed invalid "action" permission from manifest that was causing startup errors
+- **IMPROVED**: Conflict resolution system ensures manual updates persist during background operations
+- **FIXED**: Pressing the Enter key while your cursor is in one of the price alert threshold fields now updates the alert price (without needing to press the "Update Alerts" button). 
 
-### Version 1.3.1
-- **🛠️ FIXED**: Default Settings Initialization - Settings now properly initialize with correct default values on first install
-- **⚙️ FIXED**: Settings Consistency - Fixed inconsistent fallback values across popup, background, and settings components
-- **🚀 FIXED**: Extension Startup - Settings are now properly initialized on both extension install and browser startup
+### ⚙️ Version 1.3.1
+- **FIXED**: Default Settings Initialization - Settings now properly initialize with correct default values on first install
+- **FIXED**: Settings Consistency - Fixed inconsistent fallback values across popup, background, and settings components
+- **FIXED**: Extension Startup - Settings are now properly initialized on both extension install and browser startup
 - **FIXED**: Settings Page - Settings page now saves default values if none exist previously
-- **💰 FIXED**: Price Format Defaults - Corrected default price format from 'auto' to 'gp' throughout the extension
-- **🔧 CHANGED**: Settings Management - Unified settings retrieval with proper default handling across all components
-- **🖥️ ENHANCED**: Background Script - Enhanced installation and startup handlers to ensure settings are always initialized
+- **FIXED**: Price Format Defaults - Corrected default price format from 'auto' to 'gp' throughout the extension
+- **CHANGED**: Settings Management - Unified settings retrieval with proper default handling across all components
+- **ENHANCED**: Background Script - Enhanced installation and startup handlers to ensure settings are always initialized
 - **IMPROVED**: Popup Interface - Improved settings loading with proper error handling and fallback to defaults
 
 ### 🎨 Version 1.3.0

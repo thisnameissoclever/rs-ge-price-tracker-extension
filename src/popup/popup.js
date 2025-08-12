@@ -417,6 +417,28 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
         if (updateBtn) {
             updateBtn.addEventListener('click', () => updateThresholds(item.id));
         }
+        
+        // Add Enter key listeners for threshold inputs
+        const lowInput = document.getElementById(`low-${item.id}`);
+        const highInput = document.getElementById(`high-${item.id}`);
+        
+        if (lowInput) {
+            lowInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    updateThresholds(item.id);
+                }
+            });
+        }
+        
+        if (highInput) {
+            highInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    updateThresholds(item.id);
+                }
+            });
+        }
     });
 }
 
@@ -598,6 +620,28 @@ async function refreshSingleItem(updatedItem) {
     const updateBtn = document.getElementById(`update-${updatedItem.id}`);
     if (updateBtn) {
         updateBtn.addEventListener('click', () => updateThresholds(updatedItem.id));
+    }
+    
+    // Add Enter key listeners for threshold inputs
+    const lowInput = document.getElementById(`low-${updatedItem.id}`);
+    const highInput = document.getElementById(`high-${updatedItem.id}`);
+    
+    if (lowInput) {
+        lowInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                updateThresholds(updatedItem.id);
+            }
+        });
+    }
+    
+    if (highInput) {
+        highInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                updateThresholds(updatedItem.id);
+            }
+        });
     }
     
     console.log('Refreshed single item display:', updatedItem.name);
