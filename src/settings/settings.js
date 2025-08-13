@@ -2,7 +2,7 @@
 const defaultSettings = {
     // Price Update Settings
     updateInterval: 5, // minutes
-    autoRefresh: true,
+    autoRefresh: false,
     backgroundUpdates: true,
     
     // Notification Settings
@@ -14,7 +14,7 @@ const defaultSettings = {
     // Display Settings
     priceFormat: 'gp', // Changed to 'gp' for detailed format
     sortOrder: 'date-added', // Changed to date-added
-    showHistory: false,
+    showHistory: true,
     compactView: false,
     
     // Alert Settings

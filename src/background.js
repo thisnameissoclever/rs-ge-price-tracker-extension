@@ -150,9 +150,18 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   // we'll let the user click the extension icon instead
 });
 
-// Add item to watchlist
+// Simple mutex for storage operations
+let storageMutex = false;
+
+// Add item to watchlist with mutex protection
 async function addItemToWatchlist(itemData) {
+  // Wait for any ongoing storage operations to complete
+  while (storageMutex) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
   try {
+    storageMutex = true; // Acquire mutex
     console.log('🔧 Background: Adding item to watchlist:', itemData);
     const watchlist = await getWatchlist();
     
@@ -231,12 +240,25 @@ async function addItemToWatchlist(itemData) {
     // Immediately try to fetch current price if we don't have one
     if (!itemData.currentPrice) {
       console.log('No current price available, fetching immediately...');
-      const currentPrice = await fetchItemPrice(fetchUrl, itemId);
-      if (currentPrice !== null) {
-        watchlist[itemId].currentPrice = currentPrice;
+      const priceData = await fetchItemPrice(fetchUrl, itemId);
+      if (priceData && priceData.currentPrice !== null) {
+        watchlist[itemId].currentPrice = priceData.currentPrice;
         watchlist[itemId].lastChecked = Date.now();
+        
+        // Store price history separately in local storage
+        if (priceData.priceHistory && priceData.priceHistory.length > 0) {
+          await storePriceHistory(itemId, priceData.priceHistory);
+          
+          // Store only the summarized analysis with the item
+          const analysis = analyzePriceHistory(priceData.priceHistory);
+          if (analysis) {
+            watchlist[itemId].priceAnalysis = analysis;
+            watchlist[itemId].lastHistoryUpdate = Date.now();
+          }
+        }
+        
         await chrome.storage.sync.set({ watchlist });
-        console.log('Updated price for newly added item:', currentPrice);
+        console.log('Updated price and history for newly added item:', priceData.currentPrice);
       }
     }
     
@@ -244,6 +266,8 @@ async function addItemToWatchlist(itemData) {
   } catch (error) {
     console.error('Error adding item to watchlist:', error);
     throw error;
+  } finally {
+    storageMutex = false; // Always release mutex
   }
 }
 
@@ -270,6 +294,37 @@ async function migrateWatchlistToSync(watchlist) {
   } catch (error) {
     console.error('❌ Failed to migrate watchlist to sync storage:', error);
     throw error;
+  }
+}
+
+// Price history storage management
+async function storePriceHistory(itemId, priceHistory) {
+  try {
+    await chrome.storage.local.set({
+      [`priceHistory_${itemId}`]: priceHistory
+    });
+    console.log(`Stored price history for item ${itemId} (${priceHistory.length} data points)`);
+  } catch (error) {
+    console.error(`Failed to store price history for item ${itemId}:`, error);
+  }
+}
+
+async function getPriceHistory(itemId) {
+  try {
+    const result = await chrome.storage.local.get([`priceHistory_${itemId}`]);
+    return result[`priceHistory_${itemId}`] || null;
+  } catch (error) {
+    console.error(`Failed to get price history for item ${itemId}:`, error);
+    return null;
+  }
+}
+
+async function removePriceHistory(itemId) {
+  try {
+    await chrome.storage.local.remove([`priceHistory_${itemId}`]);
+    console.log(`Removed price history for item ${itemId}`);
+  } catch (error) {
+    console.error(`Failed to remove price history for item ${itemId}:`, error);
   }
 }
 
@@ -301,29 +356,46 @@ async function getWatchlist() {
   }
 }
 
-// Remove item from watchlist
+// Remove item from watchlist with mutex protection
 async function removeItemFromWatchlist(itemId) {
+  // Wait for any ongoing storage operations to complete
+  while (storageMutex) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
   try {
+    storageMutex = true; // Acquire mutex
     const watchlist = await getWatchlist();
     
     if (watchlist[itemId]) {
       delete watchlist[itemId];
       await chrome.storage.sync.set({ watchlist });
       console.log('Item removed from watchlist:', itemId);
+      
+      // Also clean up price history from local storage
+      await removePriceHistory(itemId);
     }
   } catch (error) {
     console.error('Error removing item from watchlist:', error);
     throw error;
+  } finally {
+    storageMutex = false; // Always release mutex
   }
 }
 
-// Update item thresholds with retry on conflict
+// Update item thresholds with mutex protection and retry on conflict
 async function updateItemThresholds(itemId, lowPrice, highPrice) {
+  // Wait for any ongoing storage operations to complete
+  while (storageMutex) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
   const maxRetries = 3;
   let retries = 0;
   
   while (retries < maxRetries) {
     try {
+      storageMutex = true; // Acquire mutex
       const watchlist = await getWatchlist();
       
       if (watchlist[itemId]) {
@@ -357,6 +429,8 @@ async function updateItemThresholds(itemId, lowPrice, highPrice) {
       }
       console.warn(`Threshold update attempt ${retries} failed, retrying:`, error.message);
       await new Promise(resolve => setTimeout(resolve, 100 * retries)); // Exponential backoff
+    } finally {
+      storageMutex = false; // Always release mutex
     }
   }
 }
@@ -367,7 +441,7 @@ function extractItemIdFromUrl(url) {
   return match ? match[1] : null;
 }
 
-// Check prices and send alerts
+// Check prices and send alerts with improved concurrency handling
 async function checkPricesAndAlert() {
   try {
     console.log('Starting price check cycle...');
@@ -385,6 +459,7 @@ async function checkPricesAndAlert() {
     
     let alertCount = 0;
     let itemsToRemove = []; // Track items to auto-remove
+    let priceUpdates = {}; // Track price updates to apply
     
     // Check for time-based auto-removal first
     if (settings.autoRemoveDays > 0) {
@@ -394,50 +469,56 @@ async function checkPricesAndAlert() {
         if (item.addedAt && item.addedAt < cutoffTime) {
           console.log(`Auto-removing old item: ${item.name} (added ${Math.floor((Date.now() - item.addedAt) / (24 * 60 * 60 * 1000))} days ago)`);
           itemsToRemove.push(itemId);
-          delete watchlist[itemId];
         }
-      }
-      
-      // Save watchlist if items were removed
-      if (itemsToRemove.length > 0) {
-        await chrome.storage.sync.set({ watchlist });
-        console.log(`Auto-removed ${itemsToRemove.length} old items`);
       }
     }
     
-    // Check each remaining item
-    for (const itemId of Object.keys(watchlist)) {
+    // Check each item (but don't modify watchlist yet - collect updates first)
+    for (const itemId of itemIds) {
+      if (itemsToRemove.includes(itemId)) continue; // Skip items marked for removal
+      
       const item = watchlist[itemId];
       console.log(`Checking price for ${item.name} (ID: ${itemId})`);
       
       try {
         // Fetch current price from RS page
-        const currentPrice = await fetchItemPrice(item.url, itemId);
+        const priceData = await fetchItemPrice(item.url, itemId);
         
-        if (currentPrice !== null && currentPrice !== item.currentPrice) {
-          console.log(`Price update for ${item.name}: ${item.currentPrice} → ${currentPrice}`);
+        if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== item.currentPrice) {
+          console.log(`Price update for ${item.name}: ${item.currentPrice} → ${priceData.currentPrice}`);
           
-          // Update stored price
-          const previousPrice = item.currentPrice;
-          item.currentPrice = currentPrice;
-          item.lastChecked = Date.now();
+          // Store the price update to apply later
+          priceUpdates[itemId] = {
+            currentPrice: priceData.currentPrice,
+            lastChecked: Date.now(),
+            previousPrice: item.currentPrice
+          };
+          
+          // Store price history separately in local storage to avoid quota limits
+          if (priceData.priceHistory && priceData.priceHistory.length > 0) {
+            await storePriceHistory(itemId, priceData.priceHistory);
+            
+            // Store only the summarized analysis in sync storage
+            const analysis = analyzePriceHistory(priceData.priceHistory);
+            if (analysis) {
+              priceUpdates[itemId].priceAnalysis = analysis;
+              priceUpdates[itemId].lastHistoryUpdate = Date.now();
+            }
+          }
           
           // Check thresholds and send notifications
           let notificationSent = false;
           let shouldAutoRemove = false;
           
-          // Load settings for auto-remove
-          const settings = await getSettings();
-          
-          if (item.lowThreshold && currentPrice <= item.lowThreshold) {
+          if (item.lowThreshold && priceData.currentPrice <= item.lowThreshold) {
             // Check if item is snoozed
             const now = Date.now();
             if (!item.lastLowAlert || (now - item.lastLowAlert) >= settings.snoozeDuration) {
               await sendNotification(`${item.name} - LOW PRICE ALERT!`, 
-                `Price dropped to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.lowThreshold)} gp)`,
+                `Price dropped to ${formatPriceExact(priceData.currentPrice)} gp (threshold: ${formatPriceExact(item.lowThreshold)} gp)`,
                 'low');
               notificationSent = true;
-              item.lastLowAlert = now; // Set snooze timestamp
+              priceUpdates[itemId].lastLowAlert = now; // Include in update
               // Auto-remove if autoRemoveDays is set to 0 (immediate removal)
               if (settings.autoRemoveDays === 0) shouldAutoRemove = true;
             } else {
@@ -445,15 +526,15 @@ async function checkPricesAndAlert() {
             }
           }
           
-          if (item.highThreshold && currentPrice >= item.highThreshold) {
+          if (item.highThreshold && priceData.currentPrice >= item.highThreshold) {
             // Check if item is snoozed
             const now = Date.now();
             if (!item.lastHighAlert || (now - item.lastHighAlert) >= settings.snoozeDuration) {
               await sendNotification(`${item.name} - HIGH PRICE ALERT!`, 
-                `Price rose to ${formatPriceExact(currentPrice)} gp (threshold: ${formatPriceExact(item.highThreshold)} gp)`,
+                `Price rose to ${formatPriceExact(priceData.currentPrice)} gp (threshold: ${formatPriceExact(item.highThreshold)} gp)`,
                 'high');
               notificationSent = true;
-              item.lastHighAlert = now; // Set snooze timestamp
+              priceUpdates[itemId].lastHighAlert = now; // Include in update
               // Auto-remove if autoRemoveDays is set to 0 (immediate removal)  
               if (settings.autoRemoveDays === 0) shouldAutoRemove = true;
             } else {
@@ -464,35 +545,50 @@ async function checkPricesAndAlert() {
           // Auto-remove item if threshold triggered and setting enabled
           if (shouldAutoRemove) {
             console.log(`Auto-removing item ${item.name} after threshold alert`);
-            delete watchlist[itemId];
             itemsToRemove.push(itemId);
           }
           
           // Also notify of significant price changes (10% or more, or custom threshold)
-          if (!notificationSent && previousPrice && previousPrice > 0) {
-            const changePercent = Math.abs((currentPrice - previousPrice) / previousPrice * 100);
+          if (!notificationSent && item.currentPrice && item.currentPrice > 0) {
+            const changePercent = Math.abs((priceData.currentPrice - item.currentPrice) / item.currentPrice * 100);
             
             // Use settings for alert threshold
             if (changePercent >= settings.alertThreshold) {
-              const direction = currentPrice > previousPrice ? 'increased' : 'decreased';
+              const direction = priceData.currentPrice > item.currentPrice ? 'increased' : 'decreased';
               await sendNotification(`${item.name} - Price Change`, 
-                `Price ${direction} ${changePercent.toFixed(1)}% to ${formatPriceExact(currentPrice)} gp`,
+                `Price ${direction} ${changePercent.toFixed(1)}% to ${formatPriceExact(priceData.currentPrice)} gp`,
                 'change');
             }
           }
           
-        } else if (currentPrice !== null) {
-          // Price is the same, just update last checked time
-          item.lastChecked = Date.now();
-          console.log(`Price unchanged for ${item.name}: ${formatPriceExact(currentPrice)} gp`);
+        } else if (priceData && priceData.currentPrice !== null) {
+          // Price is the same, just update last checked time and potentially history
+          priceUpdates[itemId] = {
+            lastChecked: Date.now()
+          };
+          
+          // Update history even if price is the same
+          if (priceData.priceHistory && priceData.priceHistory.length > 0) {
+            await storePriceHistory(itemId, priceData.priceHistory);
+            
+            // Store only the summarized analysis in sync storage
+            const analysis = analyzePriceHistory(priceData.priceHistory);
+            if (analysis) {
+              priceUpdates[itemId].priceAnalysis = analysis;
+              priceUpdates[itemId].lastHistoryUpdate = Date.now();
+            }
+          }
+          
+          console.log(`Price unchanged for ${item.name}: ${formatPriceExact(priceData.currentPrice)} gp`);
         } else {
           console.log(`Failed to fetch price for ${item.name}`);
         }
         
-        // Count items exceeding thresholds for badge
-        if (currentPrice !== null) {
-          if ((item.lowThreshold && currentPrice <= item.lowThreshold) || 
-              (item.highThreshold && currentPrice >= item.highThreshold)) {
+        // Count items exceeding thresholds for badge (use current or updated price)
+        const priceToCheck = priceUpdates[itemId]?.currentPrice ?? item.currentPrice;
+        if (priceToCheck !== null) {
+          if ((item.lowThreshold && priceToCheck <= item.lowThreshold) || 
+              (item.highThreshold && priceToCheck >= item.highThreshold)) {
             alertCount++;
           }
         }
@@ -508,35 +604,8 @@ async function checkPricesAndAlert() {
     // Update badge with alert count
     updateBadge(alertCount);
     
-    // Save updated watchlist with conflict resolution
-    try {
-      // Get the latest watchlist to check for any manual threshold updates during price checking
-      const latestWatchlist = await getWatchlist();
-      
-      // Merge changes: preserve manual threshold updates, apply price updates
-      for (const itemId of Object.keys(watchlist)) {
-        if (latestWatchlist[itemId]) {
-          // If thresholds were updated manually during price check (newer lastThresholdUpdate),
-          // preserve the manual thresholds but apply price updates
-          const latestItem = latestWatchlist[itemId];
-          const ourItem = watchlist[itemId];
-          
-          if (latestItem.lastThresholdUpdate && 
-              (!ourItem.lastThresholdUpdate || latestItem.lastThresholdUpdate > ourItem.lastThresholdUpdate)) {
-            console.log(`Preserving manual threshold update for ${ourItem.name}`);
-            ourItem.lowThreshold = latestItem.lowThreshold;
-            ourItem.highThreshold = latestItem.highThreshold;
-            ourItem.lastThresholdUpdate = latestItem.lastThresholdUpdate;
-          }
-        }
-      }
-      
-      await chrome.storage.sync.set({ watchlist });
-    } catch (error) {
-      console.error('Error saving updated watchlist with conflict resolution:', error);
-      // Fallback to simple save
-      await chrome.storage.sync.set({ watchlist });
-    }
+    // Now apply all updates atomically with mutex protection
+    await applyPriceUpdatesAtomically(priceUpdates, itemsToRemove);
     
     if (itemsToRemove.length > 0) {
       console.log(`Price check cycle completed. ${itemsToRemove.length} items auto-removed, ${alertCount} remaining items have alerts.`);
@@ -546,6 +615,49 @@ async function checkPricesAndAlert() {
     
   } catch (error) {
     console.error('Error in checkPricesAndAlert:', error);
+  }
+}
+
+// Apply price updates atomically to avoid race conditions
+async function applyPriceUpdatesAtomically(priceUpdates, itemsToRemove) {
+  // Wait for any ongoing storage operations to complete
+  while (storageMutex) {
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+  
+  try {
+    storageMutex = true; // Acquire mutex
+    
+    // Get the latest watchlist state
+    const currentWatchlist = await getWatchlist();
+    
+    // Apply price updates
+    for (const [itemId, updates] of Object.entries(priceUpdates)) {
+      if (currentWatchlist[itemId]) {
+        // Apply updates while preserving any manual threshold changes
+        Object.assign(currentWatchlist[itemId], updates);
+      }
+    }
+    
+    // Remove items marked for removal
+    for (const itemId of itemsToRemove) {
+      if (currentWatchlist[itemId]) {
+        delete currentWatchlist[itemId];
+        console.log(`Removed item from watchlist: ${itemId}`);
+        
+        // Also clean up price history from local storage
+        await removePriceHistory(itemId);
+      }
+    }
+    
+    // Save the updated watchlist
+    await chrome.storage.sync.set({ watchlist: currentWatchlist });
+    console.log('Price updates and removals applied successfully');
+    
+  } catch (error) {
+    console.error('Error applying price updates atomically:', error);
+  } finally {
+    storageMutex = false; // Always release mutex
   }
 }
 
@@ -587,6 +699,7 @@ async function fetchItemPrice(itemUrl, itemId) {
     
     let currentPrice = null;
     let itemName = null;
+    let priceHistory = null;
     
     // Extract item name from page title
     const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
@@ -599,18 +712,34 @@ async function fetchItemPrice(itemUrl, itemId) {
       }
     }
     
-    // Extract price from JavaScript data - look for the average30 arrays
+    // Extract price history from JavaScript data - look for the average30 arrays
     try {
-      // Look for average30.push patterns which contain the current price
+      // Look for average30.push patterns which contain the historical price data
       const average30Matches = html.match(/average30\.push\(\[new Date\([^,]+\),\s*(\d+),\s*\d+\]\);?/g);
       
       if (average30Matches && average30Matches.length > 0) {
-        // Get the last (most recent) price entry
-        const lastMatch = average30Matches[average30Matches.length - 1];
-        const priceMatch = lastMatch.match(/,\s*(\d+),/);
-        if (priceMatch) {
-          currentPrice = parseInt(priceMatch[1]);
-          console.log('Found current price from average30 data:', currentPrice);
+        // Parse all historical data points
+        priceHistory = [];
+        average30Matches.forEach(match => {
+          const fullMatch = match.match(/average30\.push\(\[new Date\(([^,]+)\),\s*(\d+),\s*(\d+)\]\);?/);
+          if (fullMatch) {
+            const dateStr = fullMatch[1].replace(/['"]/g, ''); // Remove quotes
+            const price = parseInt(fullMatch[2]);
+            const volume = parseInt(fullMatch[3]);
+            
+            priceHistory.push({
+              date: dateStr,
+              price: price,
+              volume: volume,
+              timestamp: new Date(dateStr).getTime()
+            });
+          }
+        });
+        
+        // Get current price from the most recent data point
+        if (priceHistory.length > 0) {
+          currentPrice = priceHistory[priceHistory.length - 1].price;
+          console.log(`Found ${priceHistory.length} days of price history, current price from data:`, currentPrice);
         }
       }
       
@@ -665,10 +794,13 @@ async function fetchItemPrice(itemUrl, itemId) {
       console.error('Error parsing price from HTML:', error);
     }
     
-    console.log(`Final extracted data for item ${itemId}:`, { itemName, currentPrice });
+    console.log(`Final extracted data for item ${itemId}:`, { itemName, currentPrice, historyPoints: priceHistory?.length || 0 });
     
-    // Return the price (we mainly care about price updates in background)
-    return currentPrice;
+    // Return both current price and price history
+    return {
+      currentPrice,
+      priceHistory
+    };
     
   } catch (error) {
     console.error('Error fetching price for item', itemId, ':', error);
@@ -815,10 +947,72 @@ function formatPriceExact(price) {
   return price.toLocaleString();
 }
 
+// Analyze price history and generate trend information
+function analyzePriceHistory(priceHistory) {
+  if (!priceHistory || priceHistory.length === 0) {
+    return null;
+  }
+  
+  const prices = priceHistory.map(p => p.price);
+  const currentPrice = prices[prices.length - 1];
+  const oldestPrice = prices[0];
+  
+  // Calculate statistics
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+  
+  // Calculate trend (comparing current to 7 days ago if available)
+  const sevenDaysAgo = Math.max(0, prices.length - 7);
+  const weekAgoPrice = prices[sevenDaysAgo];
+  const weeklyChange = currentPrice - weekAgoPrice;
+  const weeklyChangePercent = weekAgoPrice > 0 ? (weeklyChange / weekAgoPrice * 100) : 0;
+  
+  // Calculate overall trend (current vs oldest)
+  const overallChange = currentPrice - oldestPrice;
+  const overallChangePercent = oldestPrice > 0 ? (overallChange / oldestPrice * 100) : 0;
+  
+  // Determine trend direction
+  let trendDirection = 'stable';
+  let trendEmoji = '➡️';
+  
+  if (Math.abs(weeklyChangePercent) > 2) { // More than 2% change in a week
+    if (weeklyChangePercent > 0) {
+      trendDirection = 'rising';
+      trendEmoji = '📈';
+    } else {
+      trendDirection = 'falling';
+      trendEmoji = '📉';
+    }
+  }
+  
+  // Calculate volatility (standard deviation as percentage of mean)
+  const variance = prices.reduce((acc, price) => acc + Math.pow(price - avgPrice, 2), 0) / prices.length;
+  const stdDev = Math.sqrt(variance);
+  const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
+  
+  return {
+    currentPrice,
+    minPrice,
+    maxPrice,
+    avgPrice,
+    weeklyChange,
+    weeklyChangePercent,
+    overallChange,
+    overallChangePercent,
+    trendDirection,
+    trendEmoji,
+    volatility,
+    dataPoints: prices.length,
+    priceRange: maxPrice - minPrice,
+    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+  };
+}
+
 // Default settings
 const defaultSettings = {
   updateInterval: 5, // minutes
-  autoRefresh: true,
+  autoRefresh: false,
   backgroundUpdates: true,
   desktopNotifications: true,
   soundAlerts: true, // Changed to true
@@ -826,7 +1020,7 @@ const defaultSettings = {
   notificationLimit: 10,
   priceFormat: 'gp', // Changed to 'gp' for detailed format
   sortOrder: 'date-added', // Changed to date-added
-  showHistory: false,
+  showHistory: true,
   compactView: false,
   defaultAlertType: 'both',
   alertThreshold: 10,

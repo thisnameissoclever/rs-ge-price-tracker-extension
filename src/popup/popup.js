@@ -3,7 +3,7 @@
 // Default settings (should match background.js)
 const DEFAULT_SETTINGS = {
     updateInterval: 5,
-    autoRefresh: true,
+    autoRefresh: false,
     backgroundUpdates: true,
     desktopNotifications: true,
     soundAlerts: true,
@@ -11,7 +11,7 @@ const DEFAULT_SETTINGS = {
     notificationLimit: 10,
     priceFormat: 'gp',
     sortOrder: 'date-added',
-    showHistory: false,
+    showHistory: true,
     compactView: false,
     defaultAlertType: 'both',
     alertThreshold: 10,
@@ -22,7 +22,18 @@ const DEFAULT_SETTINGS = {
     autoRemoveDays: 0
 };
 
-// Get settings with proper defaults
+// Helper function to get full price history from local storage (if needed)
+async function getPriceHistory(itemId) {
+    try {
+        const result = await chrome.storage.local.get([`priceHistory_${itemId}`]);
+        return result[`priceHistory_${itemId}`] || null;
+    } catch (error) {
+        console.error(`Failed to get price history for item ${itemId}:`, error);
+        return null;
+    }
+}
+
+// Get settings from Chrome storage
 async function getSettings() {
     try {
         const result = await chrome.storage.sync.get('settings');
@@ -316,9 +327,18 @@ async function displayWatchlist(watchlist) {
         return;
     }
     
+    // Debug: Check which items have price history
+    console.log('🔍 Watchlist items price history status:');
+    items.forEach(item => {
+        const hasHistory = item.priceAnalysis || (item.lastHistoryUpdate && item.lastHistoryUpdate > 0);
+        console.log(`  ${item.name}: ${hasHistory ? `✅ Has price analysis` : '❌ No price analysis'}`);
+    });
+    
     // Load settings to check compact view, price format, and sort order
     try {
         const settings = await getSettings();
+        console.log('⚙️ Settings:', { showHistory: settings.showHistory, compactView: settings.compactView });
+        
         const result = await chrome.storage.sync.get('sortOrder');
         const sortOrder = result.sortOrder || settings.sortOrder;
         
@@ -396,7 +416,7 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
     
     container.innerHTML = items.map(item => createItemHTML(item, isCompactView, priceFormat)).join('');
     
-    // Add event listeners for images and buttons
+    // Add event listeners for images and buttons and show price history
     items.forEach(item => {
         // Image error handling
         const img = document.querySelector(`[data-item-id="${item.id}"] img[data-fallback="hide"]`);
@@ -439,7 +459,46 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
                 }
             });
         }
+        
+        // Show price history immediately if available and setting is enabled
+        showPriceHistoryForItem(item, isCompactView);
     });
+}
+
+// Separate function to handle price history display
+async function showPriceHistoryForItem(item, isCompactView) {
+    try {
+        const settings = await getSettings();
+        
+        if (settings.showHistory && item.priceAnalysis) {
+            const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
+            if (historyContainer) {
+                historyContainer.innerHTML = createPriceHistoryHTML(item.priceAnalysis, isCompactView);
+                historyContainer.style.display = 'block';
+                console.log(`📊 Showing price analysis for ${item.name}`);
+            } else {
+                console.log(`❌ No history container found for ${item.name}`);
+            }
+        } else if (settings.showHistory && !item.priceAnalysis) {
+            // Show a placeholder indicating history will be available after next refresh
+            const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
+            if (historyContainer) {
+                historyContainer.innerHTML = `
+                    <div class="price-history-placeholder">
+                        <span style="color: #95a5a6; font-size: 11px; font-style: italic;">
+                            📈 Price history will be available after next refresh
+                        </span>
+                    </div>
+                `;
+                historyContainer.style.display = 'block';
+                console.log(`📈 Showing history placeholder for ${item.name}`);
+            }
+        } else {
+            console.log(`⚙️ Price history disabled or no analysis for ${item.name} (showHistory: ${settings.showHistory}, hasAnalysis: ${!!item.priceAnalysis})`);
+        }
+    } catch (error) {
+        console.error(`Error showing price history for ${item.name}:`, error);
+    }
 }
 
 function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
@@ -453,6 +512,9 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
     if (!item.imageUrl && item.id) {
         item.imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${item.id}`;
     }
+    
+    // Use stored analysis if available
+    const historyAnalysis = item.priceAnalysis || null;
         
     // Calculate time since last check
     let timeSinceCheck = 'Never';
@@ -523,6 +585,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
                         </div>
                     </div>
                 </div>
+                <div class="price-history" style="display: none;"></div>
             </div>
         `;
     }
@@ -553,6 +616,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
                 </span>
                 ${item.currentPrice ? `<small class="time-since ${alertStatus !== 'normal' ? 'time-since-alert' : ''}">${timeSinceCheck}</small>` : ''}
             </div>
+            <div class="price-history" style="display: none;"></div>
             <div class="thresholds">
                 <div class="threshold-group">
                     <label class="${alertStatus === 'low' ? 'threshold-label-low' : 'threshold-label'}">Low Alert (≤)</label>
@@ -643,6 +707,9 @@ async function refreshSingleItem(updatedItem) {
             }
         });
     }
+    
+    // Add price history if showHistory is enabled and data is available
+    showPriceHistoryForItem(updatedItem, isCompactView);
     
     console.log('Refreshed single item display:', updatedItem.name);
 }
@@ -781,6 +848,131 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Analyze price history and generate trend information
+function analyzePriceHistory(priceHistory) {
+    if (!priceHistory || priceHistory.length === 0) {
+        return null;
+    }
+    
+    const prices = priceHistory.map(p => p.price);
+    const currentPrice = prices[prices.length - 1];
+    const oldestPrice = prices[0];
+    
+    // Calculate statistics
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    const avgPrice = Math.round(prices.reduce((a, b) => a + b, 0) / prices.length);
+    
+    // Calculate trend (comparing current to 7 days ago if available)
+    const sevenDaysAgo = Math.max(0, prices.length - 7);
+    const weekAgoPrice = prices[sevenDaysAgo];
+    const weeklyChange = currentPrice - weekAgoPrice;
+    const weeklyChangePercent = weekAgoPrice > 0 ? (weeklyChange / weekAgoPrice * 100) : 0;
+    
+    // Calculate overall trend (current vs oldest)
+    const overallChange = currentPrice - oldestPrice;
+    const overallChangePercent = oldestPrice > 0 ? (overallChange / oldestPrice * 100) : 0;
+    
+    // Determine trend direction
+    let trendDirection = 'stable';
+    let trendEmoji = '➡️';
+    
+    if (Math.abs(weeklyChangePercent) > 2) { // More than 2% change in a week
+        if (weeklyChangePercent > 0) {
+            trendDirection = 'rising';
+            trendEmoji = '📈';
+        } else {
+            trendDirection = 'falling';
+            trendEmoji = '📉';
+        }
+    }
+    
+    // Calculate volatility (standard deviation as percentage of mean)
+    const variance = prices.reduce((acc, price) => acc + Math.pow(price - avgPrice, 2), 0) / prices.length;
+    const stdDev = Math.sqrt(variance);
+    const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
+    
+    return {
+        currentPrice,
+        minPrice,
+        maxPrice,
+        avgPrice,
+        weeklyChange,
+        weeklyChangePercent,
+        overallChange,
+        overallChangePercent,
+        trendDirection,
+        trendEmoji,
+        volatility,
+        dataPoints: prices.length,
+        priceRange: maxPrice - minPrice,
+        priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+    };
+}
+
+// Create price history HTML
+function createPriceHistoryHTML(analysis, isCompactView = false) {
+    if (!analysis) return '';
+    
+    const changeColor = analysis.weeklyChangePercent > 0 ? '#27ae60' : 
+                       analysis.weeklyChangePercent < 0 ? '#e74c3c' : '#95a5a6';
+    
+    if (isCompactView) {
+        return `
+            <div class="price-history-compact">
+                <span class="trend-indicator" style="color: ${changeColor}">
+                    ${analysis.trendEmoji} ${analysis.weeklyChangePercent > 0 ? '+' : ''}${analysis.weeklyChangePercent.toFixed(1)}%
+                </span>
+                <span class="price-range" title="30-day range">
+                    ${formatPriceExact(analysis.minPrice)} - ${formatPriceExact(analysis.maxPrice)} gp
+                </span>
+            </div>
+        `;
+    }
+    
+    return `
+        <div class="price-history-full">
+            <div class="history-stats">
+                <div class="stat-row">
+                    <span class="stat-label">7-day trend:</span>
+                    <span class="stat-value" style="color: ${changeColor}">
+                        ${analysis.trendEmoji} ${analysis.weeklyChangePercent > 0 ? '+' : ''}${analysis.weeklyChangePercent.toFixed(1)}%
+                        (${analysis.weeklyChange > 0 ? '+' : ''}${formatPriceExact(analysis.weeklyChange)} gp)
+                    </span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">30-day range:</span>
+                    <span class="stat-value">
+                        ${formatPriceExact(analysis.minPrice)} - ${formatPriceExact(analysis.maxPrice)} gp
+                        <small>(${analysis.priceRangePercent.toFixed(1)}% variation)</small>
+                    </span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">30-day average:</span>
+                    <span class="stat-value">${formatPriceExact(analysis.avgPrice)} gp</span>
+                </div>
+                ${analysis.volatility > 10 ? `
+                <div class="stat-row">
+                    <span class="stat-label">Volatility:</span>
+                    <span class="stat-value" style="color: #f39c12">
+                        ${analysis.volatility.toFixed(1)}% ${analysis.volatility > 20 ? '⚠️ High' : '📊 Moderate'}
+                    </span>
+                </div>` : ''}
+            </div>
+            <div class="mini-chart">
+                ${createMiniChart(analysis)}
+            </div>
+        </div>
+    `;
+}
+
+// Create a simple mini chart using CSS
+function createMiniChart(analysis) {
+    // This creates a simple sparkline-style chart using CSS bars
+    // We need to get the price history from the item since analysis doesn't include the raw data
+    return '<div class="chart-placeholder">📊 Chart (hover for details)</div>';
 }
 
 function showError(message) {
