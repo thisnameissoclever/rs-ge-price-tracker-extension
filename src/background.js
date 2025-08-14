@@ -472,7 +472,7 @@ async function saveSyncData(data, operationType = 'sync operation') {
 
 // Check prices and send alerts with improved concurrency handling
 async function checkPricesAndAlert() {
-  console.group('🔄 Price Check Cycle');
+  console.groupCollapsed('🔄 Price Check Cycle');
   try {
     console.log('Starting price check cycle...');
     const watchlist = await getWatchlist();
@@ -509,7 +509,7 @@ async function checkPricesAndAlert() {
       if (itemsToRemove.includes(itemId)) continue; // Skip items marked for removal
       
       const item = watchlist[itemId];
-      console.group(`📊 ${item.name}`);
+      console.groupCollapsed(`📊 ${item.name}`);
       
       try {
         // Fetch current price from RS page
