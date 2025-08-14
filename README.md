@@ -4,31 +4,16 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 
 ## 🌟 Features
 
-- **📊 Re### 🛡️ Version 1.### ⚙️ Version 1.3.1
-- **FIXED**: Default Settings Initialization - Settings now properly initialize with correct default values on first install
-- **FIXED**: Settings Consistency - Fixed inconsistent fallback values across popup, background, and settings components
-- **FIXED**: Extension Startup - Settings are now properly initialized on both extension install and browser startup
-- **FIXED**: Settings Page - Settings page now saves default values if none exist previously
-- **FIXED**: Price Format Defaults - Corrected default price format from 'auto' to 'gp' throughout the extension
-- **CHANGED**: Settings Management - Unified settings retrieval with proper default handling across all components
-- **ENHANCED**: Background Script - Enhanced installation and startup handlers to ensure settings are always initialized
-- **IMPROVED**: Popup Interface - Improved settings loading with proper error handling and fallback to defaultsst)
-- **FIXED**: Content Security Policy violations causing extension errors
-- **IMPROVED**: Image error handling now complies with Chrome security standards
-- **ENHANCED**: Race condition protection for manual price threshold updates during background refresh
-- **FIXED**: Manual threshold changes no longer get overwritten by concurrent background price checks
-- **IMPROVED**: Notification creation with proper Chrome extension API compliance
-- **ENHANCED**: Better error handling with retry logic for failed price fetching (5xx server errors)
-- **FIXED**: Removed invalid "action" permission from manifest that was causing startup errors
-- **IMPROVED**: Conflict resolution system ensures manual updates persist during background operationsrice Tracking**: Automatically fetches live prices from the official RuneScape Grand Exchange
 - **🔔 Smart Price Alerts**: Set high and low price thresholds with desktop notifications
 - **📊 30-Day Price History**: Complete historical price analysis with trend indicators and volatility metrics
-- **📈 Market Trend Analysis**: Automatic detection of price patterns, market stability, and trading opportunities
+- **📈 Market Trend Analysis**: Automatic detection of price patterns, market stability, and trading opportunities  
+- **⌨️ Enhanced Input Controls**: Press Enter in threshold fields to instantly update alerts (v1.3.2)
 - **Background Monitoring**: Continuous price checking every 1-60 minutes (configurable)
 - **🎯 Easy Item Management**: Add items directly from RS item pages or through the popup
 - **🖼️ Item Images**: Display official RuneScape item icons in your watchlist for easy identification
 - **⚙️ Comprehensive Settings**: Customize update intervals, notifications, display options, and more (v1.0.1: ALL SETTINGS NOW FUNCTIONAL!)
 - **💾 Cross-Device Sync**: Watchlist and thresholds automatically sync across all your Chrome browsers via Google account
+   - Sync your settings, items in your watchlist, and configured thresholds per-item (80-90 items recommended, 100-200 max) with cross-device sync
 - **🖥️ Compact View**: Space-efficient layout option to view more items at once
 - **🎨 RuneScape-themed UI**: Authentic game-inspired design with alert animations
 - **💰 Flexible Price Formats**: Display prices as full GP, abbreviated (k/m), or auto-format (v1.0.1)
@@ -36,6 +21,7 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 - **🔇 Sound Control**: Toggle notification sounds on/off (v1.0.1)
 - **🗑️ Auto-Remove**: Automatically remove items after alerts trigger (v1.0.1)
 - **📊 Price History Tracking**: Optional 30-day historical price analysis with trend detection (v1.4.0)
+- **⌨️ Quick Updates**: Press Enter in price threshold fields to save instantly (v1.3.2)
 
 ## 🚀 Installation
 
@@ -46,12 +32,12 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
    - Or directly: [Chrome Web Store](https://chromewebstore.google.com/detail/rs-grand-exchange-price-t/hcppnjbjiopcefeebfllhhkfndicgocn)
 
 2. **Install the Extension**
-   - Click **"Add to Chrome"**
-   - Click **"Add Extension"** when prompted
+   - Click "**Add to Chrome/Vivaldi/etc.**"
+   - Click "**Add Extension**" when prompted
    - The extension icon will appear in your browser toolbar
 
 3. **Grant Permissions**
-   - Click "Allow" when prompted for permissions
+   - Click "**Allow**" when prompted for permissions
    - The extension needs access to RuneScape pages and notification permissions
 
 ### From Source (Developer Installation)
@@ -64,8 +50,8 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 
 2. **Load in Chrome**
    - Open Chrome and navigate to `chrome://extensions/`
-   - Enable **"Developer mode"** in the top-right corner
-   - Click **"Load unpacked"**
+   - Enable **Developer mode** in the top-right corner
+   - Click **Load unpacked**
    - Select the `chrome-extension-project` directory
    - The extension icon should appear in your browser toolbar
 
@@ -76,6 +62,8 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 ## 📖 Detailed Usage Guide
 
 ### Adding Items to Your Watchlist
+
+**⚠️ Watchlist Limits**: For optimal sync performance, we recommend keeping your watchlist to **80-90 items maximum**. While the extension can handle up to 100-200 items, larger watchlists may experience sync issues due to Chrome's storage limitations.
 
 #### Method 1: From RuneScape Item Pages (Recommended)
 
@@ -123,7 +111,8 @@ For each tracked item (using Elder Logs as an example):
    - Useful for: Selling opportunities, profit taking
 
 3. **Save Your Alerts**
-   - Click the **"Update Alerts"** button next to each item
+   - Click the **"Update Alerts"** button next to each item, OR
+   - **Press Enter while in either threshold field** for instant updates (v1.3.2)
    - Your thresholds will be saved and monitored continuously
 
 #### Managing Items
@@ -153,6 +142,31 @@ For each tracked item (using Elder Logs as an example):
 - **Alert Animations**: Pulsing effects draw attention to triggered alerts
 - **Notification Limits**: Configurable to prevent spam (default: 10 per hour)
 
+### Understanding Price History (v1.4.0)
+
+When price history is enabled, the extension provides comprehensive 30-day market analysis:
+
+#### **📊 Data Collection**
+- **30-day price arrays** extracted from RuneScape's Grand Exchange pages
+- **Historical highs, lows, and daily averages** automatically tracked
+- **Volume data** when available from RS market data
+
+#### **📈 Analysis Metrics**
+- **Price Change Percentage**: Overall 30-day price movement trend
+- **Volatility Index**: Market stability measurement (higher = more price swings)
+- **Trend Direction**: Automatic detection of increasing, decreasing, or stable patterns
+- **Support/Resistance Levels**: 30-day high and low price points
+
+#### **💾 Smart Storage**
+- **Full price history**: Stored locally (unlimited space, device-only)
+- **Analysis summaries**: Synced across devices (small data footprint)
+- **Optimized performance**: 93% storage space reduction vs. naive approach
+
+#### **🖥️ Display Options**
+- **Compact View**: Shows trend direction (📈📉) and percentage change
+- **Detailed View**: Full statistics including highs, lows, volatility, and averages
+- **Toggle Setting**: Can be enabled/disabled in extension settings
+
 ### Accessing Settings
 
 1. **Open the extension popup**
@@ -181,7 +195,7 @@ For each tracked item (using Elder Logs as an example):
 - **Market Trend Indicators**: Show price movement directions and stability metrics (v1.4.0)
 
 #### Advanced Features
-- **Auto-Remove**: Automatically remove items from watchlist after alert triggers (NEW)
+- **Auto-Remove**: Automatically remove items after alerts trigger (immediate when set to 0) or after X days of inactivity (time-based removal)
 - **Notification Rate Limiting**: Control maximum notifications per hour (1-50) (ENHANCED)
 - **Notification Duration**: Set how long alerts stay visible (1-30 seconds or persistent) (ENHANCED)
 - **Alert Threshold**: Percentage change required to trigger automatic price change notifications (1-50%, default 10%) (v1.0.1)
@@ -190,7 +204,8 @@ For each tracked item (using Elder Logs as an example):
 
 #### Data Management & Sync
 - **🔄 Cross-Device Sync**: Your watchlist and price thresholds automatically sync across all devices where you're signed into Chrome
-- **📱 Multi-Computer Access**: Add items on your desktop, check alerts on your laptop - all seamlessly synchronized
+- **☁️ Sync Capacity**: Recommended limit of 80-90 watchlist items for optimal sync performance (100-200 absolute maximum)
+- **🖥️ Multi-Computer Access**: Add items on your desktop, check alerts on your laptop - all seamlessly synchronized
 - **☁️ Google Account Integration**: Uses Chrome's built-in sync via your Google account (no additional accounts needed)
 - **🔒 Privacy-First**: No external servers - data syncs directly through Google's secure Chrome sync service
 - **📤 Export Data**: Download your watchlist and settings as JSON for backup
@@ -206,11 +221,13 @@ Your watchlist automatically syncs when you:
 
 **What syncs:**
 - ✅ All tracked items and their current prices
-- ✅ High and low price thresholds for each item
+- ✅ High and low price thresholds for each item  
 - ✅ Alert settings and preferences
 - ✅ Display and sorting preferences
+- ✅ Price analysis summaries (trend data, volatility metrics)
 
 **What doesn't sync:**
+- ❌ Full 30-day price history (stored locally for performance)
 - ❌ Notification history (for performance)
 - ❌ Temporary UI states
 
@@ -242,7 +259,7 @@ For browsers that don't support Chrome sync (Vivaldi, Brave, Opera), or for manu
 - 📱 Move data to non-Chrome browsers (Vivaldi, Brave, etc.)
 - 🖥️ Set up extension on work computers without Chrome sync
 
-## 🔧 Technical Details
+## 🔧 Technical Details (*Nerd Sh\*t*)
 
 ### Architecture
 
@@ -262,18 +279,20 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ### Data Storage
 
-- **Local Storage**: Chrome's `storage.local` API for watchlist data
+- **Local Storage**: Chrome's `storage.local` API for watchlist data.
+   - Limit: [10MB](https://developer.chrome.com/docs/extensions/reference/api/storage#property-local) (*5MB in Chrome 113 and earlier*)
 - **Sync Storage**: Chrome's `storage.sync` API for settings (syncs across devices)
-- **No External Servers**: All data remains on your device
-- **Persistent**: Data survives browser restarts and updates
+   - Limit: [100KB total, 8KB per data element](https://developer.chrome.com/docs/extensions/reference/api/storage#property-sync)
+- **No External Servers**: All data remains on your device. This extension does **not** "call home" in any way.
+- **Persistent**: Data survives browser restarts and updates, thanks to the use of the `storage.local` API. 
 
 ### Permissions Explained
 
-- `activeTab`: Read content from the current RuneScape tab
-- `storage`: Save watchlist and settings data locally
-- `notifications`: Show desktop price alert notifications  
-- `alarms`: Schedule background price checks
-- `https://secure.runescape.com/*`: Access official RuneScape Grand Exchange pages
+- `activeTab`: Read content from the current RuneScape tab. This enables us to figure out if you're on a RuneScape 3 (RS3) Grand Exchange page, to add the item you're currently viewing to your watchlist from its Grand Exchange page. 
+- `storage`: Save watchlist and settings data locally (using `storage.local` API), and sync settings across devices (using `storage.sync` API).
+- `notifications`: Show desktop price alert notifications (if enabled in the extension settings)
+- `alarms`: Schedule background price checks (background refresh and frequency configurable via settings page).
+- `https://secure.runescape.com/*`: Access official RuneScape Grand Exchange pages and HTTP requests. This enables the foreground and background refresh process to function so we can get updated current and historical price data. 
 
 ### Performance
 
@@ -291,7 +310,8 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 1. Add Elder Logs to watchlist from: `https://secure.runescape.com/m=itemdb_rs/Elder+logs/viewitem?obj=29556`
 2. Set Low Alert: `9,800` (buying opportunity)
 3. Set High Alert: `10,800` (selling opportunity)  
-4. Wait for notifications and execute trades
+4. Wait for notifications and execute trades as appropriate. 
+5. PROFIT! 
 
 ### Example 2: Long-term Investment Monitoring
 
@@ -311,7 +331,7 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ## 🔄 Changelog
 
-### � Version 1.4.0 (Latest)
+### 📈 Version 1.4.0 (Latest)
 - **NEW**: 30-Day Price History Analysis - Full historical price tracking and trend analysis
 - **NEW**: Price Volatility Metrics - Real-time volatility calculations and market stability indicators  
 - **NEW**: Historical Price Trends - Visual indicators showing whether items are trending up, down, or stable
@@ -395,16 +415,6 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 - **NEW**: Background script foundation
 - **NEW**: Popup interface foundation
 
-### ☁️ Version 1.0.2
-- **NEW**: Cross-device sync - watchlist and thresholds automatically sync across all your Chrome browsers
-- **ENHANCED**: Google account integration for seamless multi-computer access
-- **IMPROVED**: Automatic migration from local to sync storage for existing users
-- **NEW**: Add items on one device, get alerts on another - full synchronization
-- **ENHANCED**: Privacy-first sync using Chrome's built-in Google sync (no external servers)
-- **NEW**: Enhanced JSON export/import for browsers without Chrome sync (Vivaldi, Brave, Opera)
-- **IMPROVED**: One-click backup and restore functionality with detailed progress messages
-- **NEW**: Cross-browser compatibility - transfer watchlists between any Chromium browser
-
 ### 🔧 Version 1.0.1
 - **NEW**: Full settings integration - all settings are now functional!
 - **ENHANCED**: Price format settings now work throughout the extension (gp, k, m, auto)
@@ -416,6 +426,16 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 - **IMPROVED**: Better async/await handling for smoother performance
 - **FIXED**: All previously unwired settings are now fully functional
 - **ENHANCED**: Improved logging for better debugging and monitoring
+
+### ☁️ Version 1.0.2
+- **NEW**: Cross-device sync - watchlist and thresholds automatically sync across all your Chrome browsers
+- **ENHANCED**: Google account integration for seamless multi-computer access
+- **IMPROVED**: Automatic migration from local to sync storage for existing users
+- **NEW**: Add items on one device, get alerts on another - full synchronization
+- **ENHANCED**: Privacy-first sync using Chrome's built-in Google sync (no external servers)
+- **NEW**: Enhanced JSON export/import for browsers without Chrome sync (Vivaldi, Brave, Opera)
+- **IMPROVED**: One-click backup and restore functionality with detailed progress messages
+- **NEW**: Cross-browser compatibility - transfer watchlists between any Chromium browser
 
 ## 🛠️ Development
 
@@ -468,8 +488,6 @@ cd rs-ge-price-tracker-extension
 
 ## 🤝 Contributing
 
-**📦 [Get the extension from Chrome Web Store](https://pricetracker.snc.guru)**
-
 We welcome contributions! Here's how you can help:
 
 ### Priority Areas
@@ -503,15 +521,27 @@ This extension is **not affiliated with Jagex Ltd. or RuneScape**. It is an inde
 
 ### Common Issues
 
+**Q: Watchlist items not syncing across devices**
+- **Check watchlist size**: Large watchlists (90+ items) may exceed Chrome's sync storage limits
+- **Recommended solution**: Keep watchlist under 80-90 items for optimal sync performance
+- **Alternative**: Use Export/Import feature to manually transfer watchlist between devices
+- **Storage limits**: Chrome sync storage has a 100KB total limit shared across all extensions
+
+**Q: "Sync storage quota exceeded" errors**
+- **Cause**: Watchlist contains too many items (typically 100+ items)
+- **Solution**: Remove some items from your watchlist to reduce storage usage
+- **Prevention**: Keep watchlist under the recommended 80-90 item limit
+- **Fallback**: Extension automatically falls back to local-only storage when sync fails
+
 **Q: The "Track this item" button doesn't appear**
 - Ensure you're on an official RuneScape Grand Exchange item page
 - Check that the page URL matches: `https://secure.runescape.com/m=itemdb_rs/*/viewitem?obj=*`
 - Try refreshing the page
 
 **Q: Price updates aren't working**  
-- Check your internet connection
-- Verify the extension has proper permissions
-- Check Chrome's developer console for error messages
+- Check your internet connection (Sorry, have to add this...)
+- Verify the extension has proper permissions.
+- Check Chrome's developer console for error messages.
 
 **Q: Notifications not showing**
 - Ensure Chrome notifications are enabled for the extension

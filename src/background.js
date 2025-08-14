@@ -226,8 +226,8 @@ async function addItemToWatchlist(itemData) {
       addedAt: Date.now()
     };
     
-    await chrome.storage.sync.set({ watchlist });
-    console.log('💾 Item saved to sync storage. Updated watchlist keys:', Object.keys(watchlist));
+    await saveSyncData({ watchlist }, 'add item');
+    console.log('💾 Item saved to storage. Updated watchlist keys:', Object.keys(watchlist));
     console.log('🎯 Newly added item data:', watchlist[itemId]);
     
     // Immediately verify the save worked
@@ -257,7 +257,7 @@ async function addItemToWatchlist(itemData) {
           }
         }
         
-        await chrome.storage.sync.set({ watchlist });
+        await saveSyncData({ watchlist }, 'update price after add');
         console.log('Updated price and history for newly added item:', priceData.currentPrice);
       }
     }
@@ -285,7 +285,7 @@ async function migrateWatchlistToSync(watchlist) {
     }
     
     // Save to sync storage
-    await chrome.storage.sync.set({ watchlist });
+    await saveSyncData({ watchlist }, 'migration');
     
     // Clear from local storage after successful migration
     await chrome.storage.local.remove(['watchlist']);
@@ -369,7 +369,7 @@ async function removeItemFromWatchlist(itemId) {
     
     if (watchlist[itemId]) {
       delete watchlist[itemId];
-      await chrome.storage.sync.set({ watchlist });
+      await saveSyncData({ watchlist }, 'remove item');
       console.log('Item removed from watchlist:', itemId);
       
       // Also clean up price history from local storage
@@ -406,7 +406,7 @@ async function updateItemThresholds(itemId, lowPrice, highPrice) {
         const updateTimestamp = Date.now();
         watchlist[itemId].lastThresholdUpdate = updateTimestamp;
         
-        await chrome.storage.sync.set({ watchlist });
+        await saveSyncData({ watchlist }, 'update thresholds');
         
         // Verify the update wasn't overwritten by checking the timestamp
         await new Promise(resolve => setTimeout(resolve, 50)); // Small delay
@@ -441,8 +441,38 @@ function extractItemIdFromUrl(url) {
   return match ? match[1] : null;
 }
 
+// Storage wrapper with enhanced logging and fallback handling
+async function saveSyncData(data, operationType = 'sync operation') {
+  try {
+    await chrome.storage.sync.set(data);
+    return true;
+  } catch (error) {
+    // Check if it's a quota exceeded error
+    const isQuotaError = error.message && error.message.includes('quota');
+    const errorType = isQuotaError ? 'QUOTA_EXCEEDED' : 'SYNC_FAILED';
+    
+    if (isQuotaError) {
+      console.warn(`⚠️ Sync storage quota exceeded during ${operationType}. Watchlist too large (${Object.keys(data.watchlist || {}).length} items). Falling back to local storage only - data will not sync across devices.`);
+      
+      // Fallback to local storage
+      try {
+        await chrome.storage.local.set(data);
+        console.warn(`📱 Data saved to local storage as fallback. To restore sync functionality, reduce watchlist to 80-90 items or fewer.`);
+        return false; // Indicate sync failed but local save succeeded
+      } catch (localError) {
+        console.error(`❌ Both sync and local storage failed during ${operationType}:`, localError);
+        throw localError;
+      }
+    } else {
+      console.warn(`⚠️ Sync storage failed during ${operationType}: ${error.message}. Data will not sync across devices.`);
+      throw error;
+    }
+  }
+}
+
 // Check prices and send alerts with improved concurrency handling
 async function checkPricesAndAlert() {
+  console.group('🔄 Price Check Cycle');
   try {
     console.log('Starting price check cycle...');
     const watchlist = await getWatchlist();
@@ -454,6 +484,7 @@ async function checkPricesAndAlert() {
     if (itemIds.length === 0) {
       console.log('No items to check');
       updateBadge(0); // Clear badge when no items
+      console.groupEnd();
       return;
     }
     
@@ -478,7 +509,7 @@ async function checkPricesAndAlert() {
       if (itemsToRemove.includes(itemId)) continue; // Skip items marked for removal
       
       const item = watchlist[itemId];
-      console.log(`Checking price for ${item.name} (ID: ${itemId})`);
+      console.group(`📊 ${item.name}`);
       
       try {
         // Fetch current price from RS page
@@ -599,6 +630,7 @@ async function checkPricesAndAlert() {
       } catch (error) {
         console.error(`Error checking price for item ${itemId}:`, error);
       }
+      console.groupEnd(); // End individual item group
     }
     
     // Update badge with alert count
@@ -616,6 +648,7 @@ async function checkPricesAndAlert() {
   } catch (error) {
     console.error('Error in checkPricesAndAlert:', error);
   }
+  console.groupEnd(); // End main price check cycle group
 }
 
 // Apply price updates atomically to avoid race conditions
@@ -651,8 +684,12 @@ async function applyPriceUpdatesAtomically(priceUpdates, itemsToRemove) {
     }
     
     // Save the updated watchlist
-    await chrome.storage.sync.set({ watchlist: currentWatchlist });
-    console.log('Price updates and removals applied successfully');
+    const syncSuccess = await saveSyncData({ watchlist: currentWatchlist }, 'price updates');
+    if (syncSuccess) {
+      console.log('Price updates and removals applied successfully');
+    } else {
+      console.warn('Price updates applied but sync failed - using local storage fallback');
+    }
     
   } catch (error) {
     console.error('Error applying price updates atomically:', error);
