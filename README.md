@@ -331,7 +331,21 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ## 🔄 Changelog
 
-### 📈 Version 1.4.0 (Latest)
+### 🎯 Version 1.5.0 (Latest)
+- **NEW**: Interactive Chart Hover Tooltips - Hover over price history charts to see detailed market insights
+- **NEW**: Visual Price Sparklines - Mini bar charts showing 14-day price trends with color-coded highest, lowest, and recent prices
+- **NEW**: Advanced Trading Signals - Smart buy/sell recommendations based on price position within 30-day range and average comparison
+- **NEW**: Market Analysis Insights - Price volatility tracking, momentum analysis, and market stability indicators
+- **NEW**: Pop-Out Button - Small floating button to open the extension in a full browser tab for better viewing
+- **NEW**: Enhanced Price History Display - Rich tooltips showing trading opportunities, market position, and trend analysis
+- **IMPROVED**: Chart Visualizations - Real sparkline charts replace static placeholder text
+- **ENHANCED**: Trading Intelligence - Advanced algorithms analyze price patterns for better trading decisions
+- **FIXED**: Price Stability Calculations - More accurate volatility metrics using 2% threshold instead of 5%
+- **FIXED**: Trading Signal Accuracy - Now correctly uses actual current prices instead of historical data for recommendations
+- **IMPROVED**: Responsive UI - Pop-out functionality provides full-screen experience while maintaining compact popup
+- **NEW**: Unique Market Insights - Display information not available elsewhere like momentum analysis and volatility tracking
+
+### 📈 Version 1.4.0
 - **NEW**: 30-Day Price History Analysis - Full historical price tracking and trend analysis
 - **NEW**: Price Volatility Metrics - Real-time volatility calculations and market stability indicators  
 - **NEW**: Historical Price Trends - Visual indicators showing whether items are trending up, down, or stable

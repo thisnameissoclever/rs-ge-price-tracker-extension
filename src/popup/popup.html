@@ -6,14 +6,16 @@
     <title>RS GE Price Tracker</title>
     <style>
         body {
-            width: 450px;
-            min-height: 300px;
+            width: 585px;
+            height: min(800px, 80vh);
+            max-height: 80vh;
             margin: 0;
             padding: 15px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #1a2332 0%, #243447 50%, #2a3d52 100%);
             background-attachment: fixed;
             color: #e6e6e6;
+            overflow-y: auto;
         }
         
         .header {
@@ -25,6 +27,41 @@
             border-radius: 8px;
             box-shadow: inset 0 1px 3px rgba(255,255,255,0.1), 0 2px 8px rgba(0,0,0,0.4);
             position: relative;
+        }
+        
+        .pop-out-btn {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: linear-gradient(145deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: 1px solid #5dade2;
+            padding: 6px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            opacity: 0.8;
+        }
+        
+        .pop-out-btn:hover {
+            background: linear-gradient(145deg, #2980b9 0%, #21618c 100%);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+            transform: translateY(-1px);
+            opacity: 1;
+        }
+        
+        .pop-out-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         
         .header::before {
@@ -796,10 +833,180 @@
             border-radius: 3px;
             border: 1px dashed #5a6c7d;
         }
+        
+        /* Chart hover tooltip styles */
+        .chart-placeholder {
+            position: relative;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .chart-placeholder:hover {
+            background: rgba(244, 208, 63, 0.1);
+        }
+        
+        .chart-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(145deg, #2c3e50 0%, #34495e 100%);
+            color: #e6e6e6;
+            padding: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid #5a6c7d;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            font-size: 11px;
+            white-space: nowrap;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            margin-bottom: 5px;
+            min-width: 250px;
+        }
+        
+        .chart-tooltip.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-5px);
+        }
+        
+        .chart-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #34495e;
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 3px;
+            gap: 15px;
+        }
+        
+        .tooltip-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        .tooltip-label {
+            color: #bdc3c7;
+            font-weight: normal;
+        }
+        
+        .tooltip-value {
+            color: #f4d03f;
+            font-weight: bold;
+        }
+        
+        .tooltip-trend {
+            font-weight: bold;
+        }
+        
+        .tooltip-trend.positive {
+            color: #27ae60;
+        }
+        
+        .tooltip-trend.negative {
+            color: #e74c3c;
+        }
+        
+        .tooltip-trend.neutral {
+            color: #95a5a6;
+        }
+        
+        /* Mini chart visualization */
+        .mini-sparkline {
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 4px;
+            border: 1px solid #5a6c7d;
+        }
+        
+        .sparkline-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 10px;
+            color: #bdc3c7;
+        }
+        
+        .sparkline-chart {
+            display: flex;
+            align-items: end;
+            height: 30px;
+            gap: 1px;
+            margin: 4px 0;
+            position: relative;
+            width: 100%;
+        }
+        
+        .sparkline-bar {
+            background: linear-gradient(to top, #3498db 0%, #5dade2 100%);
+            border-radius: 1px 1px 0 0;
+            flex: 1;
+            min-width: 1px;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+        
+        .sparkline-bar.recent {
+            background: linear-gradient(to top, #f39c12 0%, #f4d03f 100%);
+        }
+        
+        .sparkline-bar.highest {
+            background: linear-gradient(to top, #27ae60 0%, #52c482 100%);
+        }
+        
+        .sparkline-bar.lowest {
+            background: linear-gradient(to top, #e74c3c 0%, #ec7063 100%);
+        }
+        
+        .sparkline-insights {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #5a6c7d;
+        }
+        
+        .insight-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 10px;
+        }
+        
+        .insight-label {
+            color: #bdc3c7;
+        }
+        
+        .insight-value {
+            color: #f4d03f;
+            font-weight: bold;
+        }
+        
+        .insight-positive {
+            color: #27ae60;
+        }
+        
+        .insight-negative {
+            color: #e74c3c;
+        }
+        
+        .insight-neutral {
+            color: #95a5a6;
+        }
     </style>
 </head>
 <body>
     <div class="header">
+        <button id="pop-out-btn" class="pop-out-btn" title="Open in new tab">
+            🗗
+        </button>
         <h1><svg width="20" height="20" viewBox="0 0 20 20" style="vertical-align: middle; margin-right: 8px;" fill="currentColor">
             <circle cx="10" cy="10" r="8" stroke="#f4d03f" stroke-width="2" fill="none"/>
             <text x="10" y="14" text-anchor="middle" font-size="12" fill="#f4d03f" font-weight="bold">GP</text>

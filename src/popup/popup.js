@@ -80,6 +80,12 @@ async function initializePopup() {
             settingsBtn.addEventListener('click', openSettings);
         }
         
+        // Add pop-out button event listener
+        const popOutBtn = document.getElementById('pop-out-btn');
+        if (popOutBtn) {
+            popOutBtn.addEventListener('click', openPopOut);
+        }
+        
     } catch (error) {
         console.error('Error initializing popup:', error);
         showError('Failed to initialize extension');
@@ -463,6 +469,11 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
         // Show price history immediately if available and setting is enabled
         showPriceHistoryForItem(item, isCompactView);
     });
+    
+    // Add chart hover listeners for all rendered items
+    setTimeout(() => {
+        addChartHoverListeners(container);
+    }, 100); // Small delay to ensure DOM is updated
 }
 
 // Separate function to handle price history display
@@ -473,9 +484,16 @@ async function showPriceHistoryForItem(item, isCompactView) {
         if (settings.showHistory && item.priceAnalysis) {
             const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
             if (historyContainer) {
-                historyContainer.innerHTML = createPriceHistoryHTML(item.priceAnalysis, isCompactView);
+                // Get actual price history data for the chart
+                const priceHistory = await getPriceHistory(item.id);
+                
+                historyContainer.innerHTML = createPriceHistoryHTML(item.priceAnalysis, isCompactView, priceHistory);
                 historyContainer.style.display = 'block';
-                console.log(`📊 Showing price analysis for ${item.name}`);
+                
+                // Add hover event listeners for chart tooltips
+                addChartHoverListeners(historyContainer);
+                
+                console.log(`📊 Showing price analysis for ${item.name} with ${priceHistory ? priceHistory.length : 0} history points`);
             } else {
                 console.log(`❌ No history container found for ${item.name}`);
             }
@@ -711,6 +729,11 @@ async function refreshSingleItem(updatedItem) {
     // Add price history if showHistory is enabled and data is available
     showPriceHistoryForItem(updatedItem, isCompactView);
     
+    // Add chart hover listeners for the refreshed item
+    setTimeout(() => {
+        addChartHoverListeners(newItemElement);
+    }, 100);
+    
     console.log('Refreshed single item display:', updatedItem.name);
 }
 
@@ -844,10 +867,57 @@ function openSettings() {
     });
 }
 
+// Open popup in full tab
+function openPopOut() {
+    chrome.tabs.create({
+        url: chrome.runtime.getURL('src/popup/popup.html')
+    }, () => {
+        // Close the popup after opening the tab
+        window.close();
+    });
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// Add hover event listeners for chart tooltips
+function addChartHoverListeners(container) {
+    const chartElements = container.querySelectorAll('.chart-placeholder[data-chart-id]');
+    
+    chartElements.forEach(chartElement => {
+        const chartId = chartElement.getAttribute('data-chart-id');
+        const tooltip = document.getElementById(`tooltip-${chartId}`);
+        
+        if (tooltip) {
+            let hoverTimeout;
+            
+            // Show tooltip on hover
+            chartElement.addEventListener('mouseenter', () => {
+                clearTimeout(hoverTimeout);
+                tooltip.classList.add('visible');
+            });
+            
+            // Hide tooltip when mouse leaves
+            chartElement.addEventListener('mouseleave', () => {
+                // Add a small delay to prevent flickering
+                hoverTimeout = setTimeout(() => {
+                    tooltip.classList.remove('visible');
+                }, 100);
+            });
+            
+            // Keep tooltip visible when hovering over it
+            tooltip.addEventListener('mouseenter', () => {
+                clearTimeout(hoverTimeout);
+            });
+            
+            tooltip.addEventListener('mouseleave', () => {
+                tooltip.classList.remove('visible');
+            });
+        }
+    });
 }
 
 // Analyze price history and generate trend information
@@ -913,7 +983,7 @@ function analyzePriceHistory(priceHistory) {
 }
 
 // Create price history HTML
-function createPriceHistoryHTML(analysis, isCompactView = false) {
+function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null) {
     if (!analysis) return '';
     
     const changeColor = analysis.weeklyChangePercent > 0 ? '#27ae60' : 
@@ -962,17 +1032,171 @@ function createPriceHistoryHTML(analysis, isCompactView = false) {
                 </div>` : ''}
             </div>
             <div class="mini-chart">
-                ${createMiniChart(analysis)}
+                ${createMiniChart(analysis, priceHistory)}
             </div>
         </div>
     `;
 }
 
 // Create a simple mini chart using CSS
-function createMiniChart(analysis) {
-    // This creates a simple sparkline-style chart using CSS bars
-    // We need to get the price history from the item since analysis doesn't include the raw data
-    return '<div class="chart-placeholder">📊 Chart (hover for details)</div>';
+function createMiniChart(analysis, priceHistory) {
+    if (!analysis) return '';
+    
+    // Create a unique ID for this chart for event handling
+    const chartId = `chart-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Generate visual chart and insights
+    const chartContent = createSparklineChart(analysis, priceHistory);
+    
+    return `
+        <div class="chart-placeholder" data-chart-id="${chartId}" data-analysis='${JSON.stringify(analysis)}'>
+            📊 Chart (hover for details)
+            <div class="chart-tooltip" id="tooltip-${chartId}">
+                ${chartContent}
+            </div>
+        </div>
+    `;
+}
+
+// Create sparkline chart and unique insights
+function createSparklineChart(analysis, priceHistory) {
+    // Generate sparkline bars (last 14 data points for visual clarity)
+    let sparklineBars = '';
+    let insights = [];
+    
+    if (priceHistory && priceHistory.length > 0) {
+        // Take last 14 points or all if less than 14
+        const recentData = priceHistory.slice(-14);
+        const prices = recentData.map(p => p.price);
+        const minPrice = Math.min(...prices);
+        const maxPrice = Math.max(...prices);
+        const priceRange = maxPrice - minPrice;
+        
+        // Generate bars
+        prices.forEach((price, index) => {
+            const height = priceRange > 0 ? Math.max(2, ((price - minPrice) / priceRange) * 28) : 15;
+            let barClass = 'sparkline-bar';
+            
+            // Highlight special bars
+            if (index === prices.length - 1) barClass += ' recent'; // Latest price
+            if (price === maxPrice) barClass += ' highest';
+            if (price === minPrice) barClass += ' lowest';
+            
+            sparklineBars += `<div class="${barClass}" style="height: ${height}px;" title="${formatPriceExact(price)} gp"></div>`;
+        });
+        
+        console.log(`📊 Generated ${prices.length} bars for sparkline (range: ${minPrice}-${maxPrice})`);
+        console.log(`🎯 Price range: ${priceRange} gp, bars created: ${prices.length}`);
+        console.log(`📈 Analysis data: min=${analysis.minPrice}, max=${analysis.maxPrice}, current=${analysis.currentPrice}, avg=${analysis.avgPrice}`);
+        
+        // Calculate unique insights not shown elsewhere
+        
+        // 1. Price volatility (better than "stability" - shows how much prices swing)
+        const avgPrice = analysis.avgPrice;
+        const volatileCount = prices.filter(p => {
+            if (avgPrice === 0) return false;
+            const deviation = Math.abs(p - avgPrice) / avgPrice;
+            return deviation > 0.02; // More than 2% swing from average
+        }).length;
+        const volatilityPercent = prices.length > 0 ? Math.round((volatileCount / prices.length) * 100) : 0;
+        
+        console.log(`🔍 Volatility calc: avg=${avgPrice}, volatile=${volatileCount}/${prices.length}, %=${volatilityPercent}`);
+        console.log(`📊 Sample prices vs avg (${avgPrice}):`, prices.slice(0, 3).map(p => `${p} (${(((p-avgPrice)/avgPrice)*100).toFixed(1)}%)`));
+        
+        // 2. Momentum (comparing recent 3 days to previous 3 days)
+        if (prices.length >= 6) {
+            const recentAvg = prices.slice(-3).reduce((a, b) => a + b, 0) / 3;
+            const previousAvg = prices.slice(-6, -3).reduce((a, b) => a + b, 0) / 3;
+            const momentum = ((recentAvg - previousAvg) / previousAvg) * 100;
+            insights.push({
+                label: 'Recent momentum:',
+                value: `${momentum > 0 ? '+' : ''}${momentum.toFixed(1)}%`,
+                class: momentum > 2 ? 'insight-positive' : momentum < -2 ? 'insight-negative' : 'insight-neutral'
+            });
+        }
+        
+        // 3. Price volatility indicator (renamed from stability)
+        insights.push({
+            label: 'Price swings:',
+            value: `${volatilityPercent}% of days`,
+            class: volatilityPercent > 50 ? 'insight-negative' : volatilityPercent < 20 ? 'insight-positive' : 'insight-neutral'
+        });
+        
+        // 4. Days since peak/low
+        const recentPrice = prices[prices.length - 1]; // Last price in the recent data
+        const daysSincePeak = prices.length - 1 - prices.lastIndexOf(maxPrice);
+        const daysSinceLow = prices.length - 1 - prices.lastIndexOf(minPrice);
+        
+        if (daysSincePeak === 0) {
+            insights.push({ label: 'Status:', value: 'At recent peak!', class: 'insight-positive' });
+        } else if (daysSinceLow === 0) {
+            insights.push({ label: 'Status:', value: 'At recent low!', class: 'insight-negative' });
+        } else {
+            insights.push({
+                label: 'Peak/Low distance:',
+                value: `${daysSincePeak}d / ${daysSinceLow}d`,
+                class: 'insight-neutral'
+            });
+        }
+        
+        // 5. Best buy/sell timing insight (using actual current price from analysis)
+        const actualCurrentPrice = analysis.currentPrice; // Use the real current price!
+        const currentVsAvg = ((actualCurrentPrice - avgPrice) / avgPrice) * 100;
+        
+        // Also check position within the 30-day range for more context
+        const rangePosition = analysis.priceRange > 0 ? 
+            ((actualCurrentPrice - analysis.minPrice) / analysis.priceRange) * 100 : 50;
+        
+        let timingInsight = '';
+        let timingClass = 'insight-neutral';
+        
+        console.log(`💰 Trading signal calc: current=${actualCurrentPrice}, avg=${avgPrice}, diff=${currentVsAvg.toFixed(1)}%, range_pos=${rangePosition.toFixed(1)}%`);
+        
+        // Enhanced logic considering both average and range position
+        if (currentVsAvg < -10 || rangePosition < 20) {
+            timingInsight = 'Good buy opportunity';
+            timingClass = 'insight-positive';
+        } else if (currentVsAvg > 10 || rangePosition > 80) {
+            timingInsight = 'Good sell opportunity';
+            timingClass = 'insight-negative';
+        } else if (currentVsAvg > 5 || rangePosition > 70) {
+            timingInsight = 'Above average - consider selling';
+            timingClass = 'insight-neutral';
+        } else if (currentVsAvg < -5 || rangePosition < 30) {
+            timingInsight = 'Below average - consider buying';
+            timingClass = 'insight-neutral';
+        } else {
+            timingInsight = 'Price in normal range';
+            timingClass = 'insight-neutral';
+        }
+        
+        insights.push({
+            label: 'Trading signal:',
+            value: timingInsight,
+            class: timingClass
+        });
+    }
+    
+    return `
+        <div class="mini-sparkline">
+            <div class="sparkline-header">
+                <span>Last 14 Days</span>
+                <span>${formatPriceExact(analysis.minPrice)} - ${formatPriceExact(analysis.maxPrice)} gp</span>
+            </div>
+            <div class="sparkline-chart">
+                ${sparklineBars || '<span style="color: #95a5a6; font-size: 10px;">No recent data</span>'}
+            </div>
+            ${insights.length > 0 ? `
+            <div class="sparkline-insights">
+                ${insights.map(insight => `
+                    <div class="insight-row">
+                        <span class="insight-label">${insight.label}</span>
+                        <span class="${insight.class}">${insight.value}</span>
+                    </div>
+                `).join('')}
+            </div>` : ''}
+        </div>
+    `;
 }
 
 function showError(message) {
