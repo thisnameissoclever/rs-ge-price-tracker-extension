@@ -6,22 +6,19 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
 
 - **🔔 Smart Price Alerts**: Set high and low price thresholds with desktop notifications
 - **📊 30-Day Price History**: Complete historical price analysis with trend indicators and volatility metrics
-- **📈 Market Trend Analysis**: Automatic detection of price patterns, market stability, and trading opportunities  
-- **⌨️ Enhanced Input Controls**: Press Enter in threshold fields to instantly update alerts (v1.3.2)
-- **Background Monitoring**: Continuous price checking every 1-60 minutes (configurable)
+- **📈 Market Trend Analysis!!**: Automatic detection of price patterns, market stability, and trading opportunities (v1.5.0+)
+- **Background Monitoring**: Continuous price checking on a configurable interval from 1 to 60 minutes
 - **🎯 Easy Item Management**: Add items directly from RS item pages or through the popup
 - **🖼️ Item Images**: Display official RuneScape item icons in your watchlist for easy identification
-- **⚙️ Comprehensive Settings**: Customize update intervals, notifications, display options, and more (v1.0.1: ALL SETTINGS NOW FUNCTIONAL!)
+- **⚙️ Comprehensive Settings**: Customize update intervals, notifications, display options, and more
 - **💾 Cross-Device Sync**: Watchlist and thresholds automatically sync across all your Chrome browsers via Google account
    - Sync your settings, items in your watchlist, and configured thresholds per-item (80-90 items recommended, 100-200 max) with cross-device sync
 - **🖥️ Compact View**: Space-efficient layout option to view more items at once
-- **🎨 RuneScape-themed UI**: Authentic game-inspired design with alert animations
-- **💰 Flexible Price Formats**: Display prices as full GP, abbreviated (k/m), or auto-format (v1.0.1)
-- **📋 Advanced Sorting**: Sort watchlist by alerts, name, price, or date added (v1.0.1)
-- **🔇 Sound Control**: Toggle notification sounds on/off (v1.0.1)
-- **🗑️ Auto-Remove**: Automatically remove items after alerts trigger (v1.0.1)
-- **📊 Price History Tracking**: Optional 30-day historical price analysis with trend detection (v1.4.0)
-- **⌨️ Quick Updates**: Press Enter in price threshold fields to save instantly (v1.3.2)
+- **💰 Flexible Price Formats**: Display prices as full GP, abbreviated (k/m) or auto-format (v1.0.1+)
+- **📋 Advanced Sorting**: Sort watchlist by alerts, name, price, or date added (v1.0.1+)
+- **🔇 Sound Control**: Toggle notification sounds on/off (v1.0.1+)
+- **🗑️ Auto-Remove**: Optional automatic removal of items after alerts trigger (v1.0.1+)
+- **📊 Price History Tracking**: Optional 7-to-30-day historical price analysis with trend detection (v1.4.0+)
 
 ## 🚀 Installation
 
@@ -37,7 +34,7 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
    - The extension icon will appear in your browser toolbar
 
 3. **Grant Permissions**
-   - Click "**Allow**" when prompted for permissions
+   - Click "**Allow**" if/when prompted for permissions
    - The extension needs access to RuneScape pages and notification permissions
 
 ### From Source (Developer Installation)
@@ -48,7 +45,7 @@ A powerful Chrome extension that allows you to track RuneScape Grand Exchange it
    cd rs-ge-price-tracker-extension
    ```
 
-2. **Load in Chrome**
+2. **Manually Load in Chrome**
    - Open Chrome and navigate to `chrome://extensions/`
    - Enable **Developer mode** in the top-right corner
    - Click **Load unpacked**
@@ -331,7 +328,16 @@ The extension uses advanced web scraping techniques to extract real-time prices:
 
 ## 🔄 Changelog
 
-### 🎯 Version 1.5.0 (Latest)
+### 🔧 Version 1.5.1 (Latest)
+- **FIXED**: Image URL Sync Bug - Items synced from Google accounts now properly display images after price refresh
+- **FIXED**: Hardcoded Timestamp Removal - Eliminated incorrect hardcoded timestamps (1719834396712, 1754907428093) from image URLs across all components
+- **ENHANCED**: Image URL Detection Logic - Improved detection and automatic correction of broken/outdated image URL formats
+- **IMPROVED**: Image Sync Process - Enhanced background image URL validation and update system during price refreshes
+- **FIXED**: URL Format Consistency - All image URLs now use correct format: `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id={itemId}`
+- **ENHANCED**: Logging System - Added comprehensive debugging logs for image URL detection, validation, and update processes
+- **IMPROVED**: Storage Update Logic - Fixed race condition where image URL updates were being overwritten during price data processing
+
+### 🎯 Version 1.5.0
 - **NEW**: Interactive Chart Hover Tooltips - Hover over price history charts to see detailed market insights
 - **NEW**: Visual Price Sparklines - Mini bar charts showing 14-day price trends with color-coded highest, lowest, and recent prices
 - **NEW**: Advanced Trading Signals - Smart buy/sell recommendations based on price position within 30-day range and average comparison

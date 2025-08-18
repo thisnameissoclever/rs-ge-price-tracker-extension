@@ -201,13 +201,13 @@ function extractItemData() {
       if (!imageUrl) {
         // RuneScape uses predictable patterns for item images
         // Try the most common current pattern first
-        imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${itemId}`;
+        imageUrl = `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${itemId}`;
         console.log('Using constructed image URL:', imageUrl);
       }
     } catch (error) {
       console.error('Error extracting image URL:', error);
       // Still set a fallback URL even if there was an error
-      imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${itemId}`;
+      imageUrl = `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${itemId}`;
     }
     
     console.log('Final extracted data:', { itemId, itemName, currentPrice, imageUrl });

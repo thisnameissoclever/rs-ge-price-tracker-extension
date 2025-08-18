@@ -124,7 +124,7 @@ async function showCurrentPageSection(itemData) {
     const addBtn = document.getElementById('add-current-btn');
     
     // Generate image URL if not present
-    const imageUrl = itemData.imageUrl || `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${itemData.id}`;
+    const imageUrl = itemData.imageUrl || `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${itemData.id}`;
     const imageHtml = imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(itemData.name)}" class="item-image" style="margin-right: 10px;" data-fallback="hide">` : '';
     
     infoDiv.innerHTML = `
@@ -319,9 +319,23 @@ async function refreshPrices() {
 }
 
 async function displayWatchlist(watchlist) {
+    console.log('📋 DISPLAYING WATCHLIST - Raw data received:', watchlist);
+    
     const container = document.getElementById('watchlist-container');
     
     const items = Object.values(watchlist);
+    
+    // Log detailed item information
+    console.log('🔍 WATCHLIST ITEMS ANALYSIS:');
+    items.forEach((item, index) => {
+        console.log(`  Item ${index + 1}: ${item.name}`, {
+            id: item.id,
+            hasImageUrl: !!item.imageUrl,
+            imageUrl: item.imageUrl || 'MISSING',
+            currentPrice: item.currentPrice,
+            addedAt: item.addedAt
+        });
+    });
     
     if (items.length === 0) {
         container.innerHTML = `
@@ -526,9 +540,21 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
     const addedAt = item.addedAt ? 
         new Date(item.addedAt).toLocaleDateString() : 'Unknown';
     
-    // Generate image URL if not present
-    if (!item.imageUrl && item.id) {
-        item.imageUrl = `https://secure.runescape.com/m=itemdb_rs/1719834396712_obj_big.gif?id=${item.id}`;
+    // Generate correct image URL if missing or incorrect
+    const correctImageUrl = `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${item.id}`;
+    
+    if (!item.imageUrl || item.imageUrl !== correctImageUrl) {
+        if (!item.imageUrl) {
+            console.log(`🖼️ POPUP: Item ${item.name} missing imageUrl, applying correct URL`);
+        } else {
+            console.log(`🔄 POPUP: Item ${item.name} has outdated imageUrl, updating to correct format`);
+            console.log(`   Old URL: ${item.imageUrl}`);
+            console.log(`   New URL: ${correctImageUrl}`);
+        }
+        item.imageUrl = correctImageUrl;
+        console.log(`✅ POPUP: Applied correct imageUrl for ${item.name}: ${item.imageUrl}`);
+    } else {
+        console.log(`✅ POPUP: Item ${item.name} already has correct imageUrl: ${item.imageUrl}`);
     }
     
     // Use stored analysis if available

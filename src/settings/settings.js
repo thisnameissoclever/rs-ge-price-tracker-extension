@@ -81,6 +81,35 @@ async function loadSettings() {
 }
 
 // Save settings to storage
+let autoSaveTimeout;
+
+async function autoSaveSettings() {
+    // Clear any existing timeout
+    if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+    }
+    
+    // Debounce auto-save to prevent excessive saving during rapid changes
+    autoSaveTimeout = setTimeout(async () => {
+        await saveSettings();
+        showSuccessMessage();
+    }, 500);
+}
+
+function showSuccessMessage() {
+    const successMessage = document.getElementById('successMessage');
+    successMessage.style.display = 'block';
+    
+    // Auto-hide the message after 2 seconds
+    setTimeout(() => {
+        successMessage.style.opacity = '0';
+        setTimeout(() => {
+            successMessage.style.display = 'none';
+            successMessage.style.opacity = '0.9';
+        }, 300);
+    }, 2000);
+}
+
 async function saveSettings() {
     try {
         const settings = {};
@@ -110,7 +139,7 @@ async function saveSettings() {
             });
         }
         
-        showMessage('Settings saved successfully!', 'success');
+        // Don't show success message here - it will be called by autoSaveSettings
         
     } catch (error) {
         console.error('Error saving settings:', error);
@@ -301,9 +330,6 @@ function showMessage(message, type = 'success') {
 
 // Setup event listeners
 function setupEventListeners() {
-    // Save button
-    document.getElementById('saveSettings').addEventListener('click', saveSettings);
-    
     // Reset button
     document.getElementById('resetSettings').addEventListener('click', resetSettings);
     
@@ -327,20 +353,30 @@ function setupEventListeners() {
         }
     });
     
-    // Color picker changes
-    document.getElementById('alertColorHigh').addEventListener('input', updateColorPreviews);
-    document.getElementById('alertColorLow').addEventListener('input', updateColorPreviews);
+    // Color picker changes with auto-save
+    document.getElementById('alertColorHigh').addEventListener('input', () => {
+        updateColorPreviews();
+        autoSaveSettings();
+    });
+    document.getElementById('alertColorLow').addEventListener('input', () => {
+        updateColorPreviews();
+        autoSaveSettings();
+    });
     
-    // Auto-save on certain changes
-    const autoSaveElements = ['updateInterval', 'autoRefresh', 'backgroundUpdates', 'desktopNotifications'];
-    autoSaveElements.forEach(id => {
-        const element = document.getElementById(id);
+    // Auto-save on all form field changes
+    Object.keys(defaultSettings).forEach(key => {
+        const element = document.getElementById(key);
         if (element) {
-            element.addEventListener('change', () => {
-                // Auto-save after a short delay
-                clearTimeout(window.autoSaveTimeout);
-                window.autoSaveTimeout = setTimeout(saveSettings, 1000);
-            });
+            // Add appropriate event listeners based on element type
+            if (element.type === 'checkbox') {
+                element.addEventListener('change', autoSaveSettings);
+            } else if (element.type === 'number' || element.type === 'range') {
+                element.addEventListener('input', autoSaveSettings);
+                element.addEventListener('change', autoSaveSettings);
+            } else {
+                element.addEventListener('input', autoSaveSettings);
+                element.addEventListener('change', autoSaveSettings);
+            }
         }
     });
     

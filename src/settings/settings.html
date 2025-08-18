@@ -6,7 +6,6 @@
     <title>RS GE Price Tracker - Settings</title>
     <style>
         body {
-            width: 600px;
             margin: 0;
             padding: 20px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -14,6 +13,83 @@
             background-attachment: fixed;
             color: #e6e6e6;
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            min-width: 350px;
+        }
+        
+        /* Responsive container padding */
+        @media (max-width: 400px) {
+            body {
+                padding: 10px;
+            }
+        }
+        
+        .settings-grid {
+            display: grid;
+            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            margin-bottom: 30px;
+        }
+        
+        /* Responsive breakpoints for column control */
+        @media (min-width: 350px) and (max-width: 749px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (min-width: 750px) and (max-width: 1149px) {
+            .settings-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (min-width: 1150px) {
+            .settings-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+        
+        /* Smooth transitions for responsive changes */
+        .settings-grid {
+            transition: grid-template-columns 0.3s ease;
+        }
+        
+        .settings-section {
+            transition: transform 0.2s ease;
+        }
+        
+        .settings-section:hover {
+            transform: translateY(-2px);
+        }
+        
+        /* Responsive button styling */
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #5a6c7d;
+            flex-wrap: wrap;
+        }
+        
+        @media (max-width: 500px) {
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .button {
+                width: 200px;
+            }
         }
         
         .header {
@@ -43,8 +119,10 @@
             border: 2px solid #5a6c7d;
             border-radius: 12px;
             padding: 20px;
-            margin-bottom: 20px;
             box-shadow: inset 0 1px 3px rgba(255,255,255,0.1), 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            height: fit-content;
         }
         
         .settings-section h2 {
@@ -137,25 +215,19 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         
-        .button-group {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 2px solid #5a6c7d;
-        }
-        
         .success-message {
             background: linear-gradient(145deg, #27ae60 0%, #229954 100%);
             border: 2px solid #1e8449;
             border-radius: 8px;
             color: white;
-            padding: 12px 20px;
-            margin: 15px 0;
+            padding: 8px 16px;
+            margin: 10px 0;
             text-align: center;
-            font-weight: bold;
+            font-weight: normal;
+            font-size: 14px;
+            opacity: 0.9;
             display: none;
+            transition: opacity 0.3s ease;
         }
         
         .color-preview {
@@ -179,14 +251,17 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A4,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
-            </svg>
-            Settings
-        </h1>
-    </div>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6A6,6 0 0,0 6,12A6,6 0 0,0 12,18A6,6 0 0,0 18,12A6,6 0 0,0 12,6M12,8A4,4 0 0,1 16,12A4,4 0 0,1 12,16A8,4 0 0,1 8,12A4,4 0 0,1 12,8Z"/>
+                </svg>
+                Settings
+            </h1>
+        </div>
+
+        <div class="settings-grid">
 
     <div class="settings-section">
         <h2>Price Update Settings</h2>
@@ -440,16 +515,19 @@
             </div>
         </div>
     </div>
+    
+        </div> <!-- End settings-grid -->
 
-    <div class="success-message" id="successMessage">
-        Settings saved successfully!
-    </div>
+        <div class="success-message" id="successMessage">
+            Auto-saved!
+        </div>
 
-    <div class="button-group">
-        <button class="button" id="saveSettings">Save Settings</button>
-        <button class="button" id="resetSettings">Reset to Defaults</button>
-        <button class="button" id="closeSettings">Close</button>
-    </div>
+        <div class="button-group">
+            <button class="button" id="resetSettings">Reset to Defaults</button>
+            <button class="button" id="closeSettings">Close</button>
+        </div>
+        
+    </div> <!-- End container -->
 
     <script src="settings.js"></script>
 </body>

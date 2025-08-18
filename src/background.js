@@ -94,13 +94,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   
   if (message.action === 'refreshPrices') {
+    console.log('🔄 Manual price refresh triggered');
     checkPricesAndAlert()
       .then(() => {
+        console.log('✅ Price refresh completed, returning updated watchlist');
         // Return updated watchlist
         return getWatchlist();
       })
-      .then(watchlist => sendResponse({ success: true, data: watchlist }))
-      .catch(error => sendResponse({ success: false, error: error.message }));
+      .then(watchlist => {
+        console.log('📤 Sending updated watchlist to popup:', Object.keys(watchlist).length, 'items');
+        sendResponse({ success: true, data: watchlist });
+      })
+      .catch(error => {
+        console.error('❌ Price refresh failed:', error);
+        sendResponse({ success: false, error: error.message });
+      });
     return true;
   }
   
@@ -511,19 +519,65 @@ async function checkPricesAndAlert() {
       const item = watchlist[itemId];
       console.groupCollapsed(`📊 ${item.name}`);
       
+      // Log detailed item information for debugging
+      const correctImageUrl = `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${itemId}`;
+      const hasCorrectImageUrl = item.imageUrl === correctImageUrl;
+      
+      console.log('🔍 Item details:', {
+        id: itemId,
+        name: item.name,
+        hasImageUrl: !!item.imageUrl,
+        hasCorrectImageUrl: hasCorrectImageUrl,
+        currentImageUrl: item.imageUrl || 'MISSING',
+        expectedImageUrl: correctImageUrl,
+        url: item.url,
+        currentPrice: item.currentPrice
+      });
+      
       try {
         // Fetch current price from RS page
         const priceData = await fetchItemPrice(item.url, itemId);
         
+        // Check if item is missing an image or has an incorrect/outdated image URL format
+        const correctImageUrl = `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${itemId}`;
+        const needsImageUpdate = !item.imageUrl || item.imageUrl !== correctImageUrl;
+        
+        if (needsImageUpdate && itemId) {
+          if (!item.imageUrl) {
+            console.log(`🖼️ MISSING IMAGE DETECTED for ${item.name} (ID: ${itemId})`);
+          } else {
+            console.log(`� OUTDATED IMAGE URL DETECTED for ${item.name} (ID: ${itemId})`);
+            console.log(`   Old URL: ${item.imageUrl}`);
+            console.log(`   New URL: ${correctImageUrl}`);
+          }
+          console.log('📝 Adding correct image URL to price updates...');
+          
+          // Add the image URL to the price updates to be saved later
+          if (!priceUpdates[itemId]) {
+            priceUpdates[itemId] = { lastChecked: Date.now() };
+            console.log('📦 Created new priceUpdates entry for item');
+          }
+          priceUpdates[itemId].imageUrl = correctImageUrl;
+          console.log(`✅ Added correct image URL for ${item.name}: ${correctImageUrl}`);
+          console.log('💾 Image URL will be saved with next storage update');
+        } else if (item.imageUrl === correctImageUrl) {
+          console.log(`✅ Item ${item.name} already has correct image URL: ${item.imageUrl}`);
+        } else {
+          console.log(`⚠️ Item ${item.name} has no item ID available for image URL construction`);
+        }
+        
         if (priceData && priceData.currentPrice !== null && priceData.currentPrice !== item.currentPrice) {
           console.log(`Price update for ${item.name}: ${item.currentPrice} → ${priceData.currentPrice}`);
           
-          // Store the price update to apply later
-          priceUpdates[itemId] = {
+          // Store the price update to apply later (preserve existing updates like imageUrl)
+          if (!priceUpdates[itemId]) {
+            priceUpdates[itemId] = {};
+          }
+          Object.assign(priceUpdates[itemId], {
             currentPrice: priceData.currentPrice,
             lastChecked: Date.now(),
             previousPrice: item.currentPrice
-          };
+          });
           
           // Store price history separately in local storage to avoid quota limits
           if (priceData.priceHistory && priceData.priceHistory.length > 0) {
@@ -593,10 +647,13 @@ async function checkPricesAndAlert() {
           }
           
         } else if (priceData && priceData.currentPrice !== null) {
-          // Price is the same, just update last checked time and potentially history
-          priceUpdates[itemId] = {
+          // Price is the same, just update last checked time and potentially history (preserve existing updates like imageUrl)
+          if (!priceUpdates[itemId]) {
+            priceUpdates[itemId] = {};
+          }
+          Object.assign(priceUpdates[itemId], {
             lastChecked: Date.now()
-          };
+          });
           
           // Update history even if price is the same
           if (priceData.priceHistory && priceData.priceHistory.length > 0) {
@@ -636,6 +693,19 @@ async function checkPricesAndAlert() {
     // Update badge with alert count
     updateBadge(alertCount);
     
+    // Log summary of what updates will be applied
+    console.log('📋 PRICE UPDATE SUMMARY:');
+    const updateSummary = Object.entries(priceUpdates).map(([itemId, updates]) => ({
+      itemId,
+      itemName: watchlist[itemId]?.name || 'Unknown',
+      hasImageUrlUpdate: !!updates.imageUrl,
+      hasPriceUpdate: updates.currentPrice !== undefined,
+      currentImageUrl: watchlist[itemId]?.imageUrl || 'NONE',
+      newImageUrl: updates.imageUrl || 'NO UPDATE',
+      updates: Object.keys(updates)
+    }));
+    console.table(updateSummary);
+    
     // Now apply all updates atomically with mutex protection
     await applyPriceUpdatesAtomically(priceUpdates, itemsToRemove);
     
@@ -665,10 +735,23 @@ async function applyPriceUpdatesAtomically(priceUpdates, itemsToRemove) {
     const currentWatchlist = await getWatchlist();
     
     // Apply price updates
+    console.log('📦 Applying price updates:', Object.keys(priceUpdates).length, 'items');
     for (const [itemId, updates] of Object.entries(priceUpdates)) {
       if (currentWatchlist[itemId]) {
+        // Log if we're adding an image URL
+        if (updates.imageUrl) {
+          console.log(`🖼️ APPLYING IMAGE URL for ${currentWatchlist[itemId].name}: ${updates.imageUrl}`);
+        }
+        
         // Apply updates while preserving any manual threshold changes
         Object.assign(currentWatchlist[itemId], updates);
+        
+        // Verify the image URL was applied
+        if (updates.imageUrl && currentWatchlist[itemId].imageUrl === updates.imageUrl) {
+          console.log(`✅ Image URL successfully applied to ${currentWatchlist[itemId].name}`);
+        }
+      } else {
+        console.log(`⚠️ Item ${itemId} not found in current watchlist for updates`);
       }
     }
     
@@ -684,11 +767,18 @@ async function applyPriceUpdatesAtomically(priceUpdates, itemsToRemove) {
     }
     
     // Save the updated watchlist
+    console.log('💾 About to save updated watchlist to storage...');
     const syncSuccess = await saveSyncData({ watchlist: currentWatchlist }, 'price updates');
     if (syncSuccess) {
-      console.log('Price updates and removals applied successfully');
+      console.log('✅ Price updates and removals applied successfully to storage');
+      
+      // Log final state of items with image URLs for verification
+      console.log('📋 FINAL STORAGE STATE - Items with image URLs:');
+      Object.entries(currentWatchlist).forEach(([itemId, item]) => {
+        console.log(`  ${item.name}: ${item.imageUrl ? '✅ HAS IMAGE' : '❌ NO IMAGE'} - ${item.imageUrl || 'MISSING'}`);
+      });
     } else {
-      console.warn('Price updates applied but sync failed - using local storage fallback');
+      console.warn('⚠️ Price updates applied but sync failed - using local storage fallback');
     }
     
   } catch (error) {
