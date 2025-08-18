@@ -1,6 +1,7 @@
 # RuneScape Grand Exchange Price Tracker
 
 A powerful Chrome extension that allows you to track RuneScape Grand Exchange item prices in real-time and receive notifications when prices hit your target thresholds. Never miss a profitable trade opportunity again!
+Full (including proper formatting for easier reading) can be found at [https://rs-ge-readme.snc.guru](https://rs-ge-readme.snc.guru). 
 
 ## 🌟 Features
 
