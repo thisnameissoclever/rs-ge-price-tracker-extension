@@ -1001,6 +1001,16 @@ function analyzePriceHistory(priceHistory) {
     const variance = prices.reduce((acc, price) => acc + Math.pow(price - avgPrice, 2), 0) / prices.length;
     const stdDev = Math.sqrt(variance);
     const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
+
+    // Advanced positioning metrics (align with background)
+    const range = maxPrice - minPrice;
+    const rangePosition = range > 0 ? ((currentPrice - minPrice) / range * 100) : 50; // 0 at low, 100 at high
+    const zScore = stdDev > 0 ? ((currentPrice - avgPrice) / stdDev) : 0;
+    let less = 0, equal = 0;
+    for (const v of prices) {
+        if (v < currentPrice) less++; else if (v === currentPrice) equal++;
+    }
+    const percentileRank = prices.length > 0 ? ((less + 0.5 * equal) / prices.length) * 100 : 50;
     
     return {
         currentPrice,
@@ -1014,6 +1024,10 @@ function analyzePriceHistory(priceHistory) {
         trendDirection,
         trendEmoji,
         volatility,
+        stdDev,
+        rangePosition,
+        zScore,
+        percentileRank,
         dataPoints: prices.length,
         priceRange: maxPrice - minPrice,
         priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
@@ -1177,35 +1191,38 @@ function createSparklineChart(analysis, priceHistory) {
             });
         }
         
-        // 5. Best buy/sell timing insight (using actual current price from analysis)
-        const actualCurrentPrice = analysis.currentPrice; // Use the real current price!
-        const currentVsAvg = ((actualCurrentPrice - avgPrice) / avgPrice) * 100;
-        
-        // Also check position within the 30-day range for more context
-        const rangePosition = analysis.priceRange > 0 ? 
-            ((actualCurrentPrice - analysis.minPrice) / analysis.priceRange) * 100 : 50;
-        
-        let timingInsight = '';
+        // 5. Best buy/sell timing insight using multi-signal scoring
+        const actualCurrentPrice = analysis.currentPrice;
+        const currentVsAvgPct = avgPrice > 0 ? ((actualCurrentPrice - avgPrice) / avgPrice) * 100 : 0;
+        const rp = analysis.rangePosition; // 0..100
+        const z = analysis.zScore; // ~-2..+2 typical
+        const pr = analysis.percentileRank; // 0..100
+
+        // Compute a "buy score" and "sell score" from multiple indicators
+        // Lower than average, near range low, negative z-score, low percentile -> buy
+        const buyScore = (
+            (currentVsAvgPct < 0 ? Math.min(20, -currentVsAvgPct) : 0) + // up to 20
+            (rp < 50 ? (50 - rp) * 0.3 : 0) +                            // up to 15 when at 0
+            (z < 0 ? Math.min(20, -z * 10) : 0) +                        // z=-2 => 20
+            (pr < 50 ? (50 - pr) * 0.3 : 0)                              // up to 15 when at 0
+        );
+        // Higher than average, near range high, positive z-score, high percentile -> sell
+        const sellScore = (
+            (currentVsAvgPct > 0 ? Math.min(20, currentVsAvgPct) : 0) +  // up to 20
+            (rp > 50 ? (rp - 50) * 0.3 : 0) +                            // up to 15 when at 100
+            (z > 0 ? Math.min(20, z * 10) : 0) +                         // z=+2 => 20
+            (pr > 50 ? (pr - 50) * 0.3 : 0)                              // up to 15 when at 100
+        );
+
+        let timingInsight = 'Price in normal range';
         let timingClass = 'insight-neutral';
-        
-        console.log(`💰 Trading signal calc: current=${actualCurrentPrice}, avg=${avgPrice}, diff=${currentVsAvg.toFixed(1)}%, range_pos=${rangePosition.toFixed(1)}%`);
-        
-        // Enhanced logic considering both average and range position
-        if (currentVsAvg < -10 || rangePosition < 20) {
-            timingInsight = 'Good buy opportunity';
-            timingClass = 'insight-positive';
-        } else if (currentVsAvg > 10 || rangePosition > 80) {
-            timingInsight = 'Good sell opportunity';
-            timingClass = 'insight-negative';
-        } else if (currentVsAvg > 5 || rangePosition > 70) {
-            timingInsight = 'Above average - consider selling';
-            timingClass = 'insight-neutral';
-        } else if (currentVsAvg < -5 || rangePosition < 30) {
-            timingInsight = 'Below average - consider buying';
-            timingClass = 'insight-neutral';
-        } else {
-            timingInsight = 'Price in normal range';
-            timingClass = 'insight-neutral';
+        const margin = Math.abs(buyScore - sellScore);
+        if (buyScore > sellScore && margin >= 8) {
+            timingInsight = buyScore >= 25 ? 'Good buy opportunity' : 'Below average - consider buying';
+            timingClass = buyScore >= 25 ? 'insight-positive' : 'insight-neutral';
+        } else if (sellScore > buyScore && margin >= 8) {
+            timingInsight = sellScore >= 25 ? 'Good sell opportunity' : 'Above average - consider selling';
+            timingClass = sellScore >= 25 ? 'insight-negative' : 'insight-neutral';
         }
         
         insights.push({
@@ -1232,6 +1249,10 @@ function createSparklineChart(analysis, priceHistory) {
                         <span class="${insight.class}">${insight.value}</span>
                     </div>
                 `).join('')}
+                <div class="insight-row">
+                    <span class="insight-label">Position:</span>
+                    <span class="insight-neutral">${analysis.rangePosition.toFixed(0)}% of 30d range, z=${analysis.zScore.toFixed(2)}, pctl=${analysis.percentileRank.toFixed(0)}%</span>
+                </div>
             </div>` : ''}
         </div>
     `;

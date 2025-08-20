@@ -1117,6 +1117,17 @@ function analyzePriceHistory(priceHistory) {
   const variance = prices.reduce((acc, price) => acc + Math.pow(price - avgPrice, 2), 0) / prices.length;
   const stdDev = Math.sqrt(variance);
   const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
+
+  // Advanced positioning metrics
+  const range = maxPrice - minPrice;
+  const rangePosition = range > 0 ? ((currentPrice - minPrice) / range * 100) : 50; // 0=at min, 100=at max
+  const zScore = stdDev > 0 ? ((currentPrice - avgPrice) / stdDev) : 0;
+  // Percentile rank of current price within the window
+  let less = 0, equal = 0;
+  for (const v of prices) {
+    if (v < currentPrice) less++; else if (v === currentPrice) equal++;
+  }
+  const percentileRank = prices.length > 0 ? ((less + 0.5 * equal) / prices.length) * 100 : 50;
   
   return {
     currentPrice,
@@ -1130,6 +1141,10 @@ function analyzePriceHistory(priceHistory) {
     trendDirection,
     trendEmoji,
     volatility,
+    stdDev,
+    rangePosition,
+    zScore,
+    percentileRank,
     dataPoints: prices.length,
     priceRange: maxPrice - minPrice,
     priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
