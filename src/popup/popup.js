@@ -47,6 +47,16 @@ async function getSettings() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Popup loaded');
     
+    // If opened in a full tab (via pop-out), enable wide columnar layout
+    try {
+        const url = new URL(window.location.href);
+        if (url.searchParams.get('tab') === '1') {
+            document.body.classList.add('tab-view');
+        }
+    } catch (e) {
+        // ignore
+    }
+    
     // Initialize popup
     initializePopup();
 });
@@ -895,8 +905,10 @@ function openSettings() {
 
 // Open popup in full tab
 function openPopOut() {
+    // Pass a flag so the page can switch to the columnar layout
+    const tabUrl = chrome.runtime.getURL('src/popup/popup.html?tab=1');
     chrome.tabs.create({
-        url: chrome.runtime.getURL('src/popup/popup.html')
+        url: tabUrl
     }, () => {
         // Close the popup after opening the tab
         window.close();
