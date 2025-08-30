@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
     priceFormat: 'gp',
     sortOrder: 'date-added',
     showHistory: true,
+    chartHistoryDays: 14, // Default to 14 days for chart history
     compactView: false,
     defaultAlertType: 'both',
     alertThreshold: 10,
@@ -505,23 +506,41 @@ async function showPriceHistoryForItem(item, isCompactView) {
     try {
         const settings = await getSettings();
         
-        if (settings.showHistory && item.priceAnalysis) {
+        if (settings.showHistory && (item.priceAnalysis || item.lastHistoryUpdate)) {
             const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
             if (historyContainer) {
                 // Get actual price history data for the chart
                 const priceHistory = await getPriceHistory(item.id);
                 
-                historyContainer.innerHTML = createPriceHistoryHTML(item.priceAnalysis, isCompactView, priceHistory);
-                historyContainer.style.display = 'block';
+                // Always recalculate analysis with fresh price history data
+                let analysis = null;
+                if (priceHistory && priceHistory.length > 0) {
+                    analysis = analyzePriceHistory(priceHistory);
+                    console.log(`🔄 Recalculated fresh analysis for ${item.name}:`, {
+                        volatility: analysis.volatility.toFixed(2) + '%',
+                        category: analysis.volatilityCategory,
+                        rangePosition: analysis.rangePosition.toFixed(1) + '%',
+                        tradingSignal: analysis.tradingSignal
+                    });
+                } else {
+                    // Fallback to stored analysis if no price history available
+                    analysis = item.priceAnalysis;
+                    console.log(`📦 Using stored analysis for ${item.name} (no fresh price history)`);
+                }
                 
-                // Add hover event listeners for chart tooltips
-                addChartHoverListeners(historyContainer);
-                
-                console.log(`📊 Showing price analysis for ${item.name} with ${priceHistory ? priceHistory.length : 0} history points`);
-            } else {
-                console.log(`❌ No history container found for ${item.name}`);
+                if (analysis) {
+                    historyContainer.innerHTML = createPriceHistoryHTML(analysis, isCompactView, priceHistory, settings.chartHistoryDays);
+                    historyContainer.style.display = 'block';
+                    
+                    // Add hover event listeners for chart tooltips
+                    addChartHoverListeners(historyContainer);
+                    
+                    console.log(`📊 Showing fresh price analysis for ${item.name} with ${priceHistory ? priceHistory.length : 0} history points`);
+                } else {
+                    console.log(`❌ No analysis data available for ${item.name}`);
+                }
             }
-        } else if (settings.showHistory && !item.priceAnalysis) {
+        } else if (settings.showHistory && (!item.priceAnalysis && !item.lastHistoryUpdate)) {
             // Show a placeholder indicating history will be available after next refresh
             const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
             if (historyContainer) {
@@ -1079,7 +1098,7 @@ function analyzePriceHistory(priceHistory) {
 }
 
 // Create price history HTML
-function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null) {
+function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null, chartHistoryDays = 14) {
     if (!analysis) return '';
     
     const changeColor = analysis.weeklyChangePercent > 0 ? '#27ae60' : 
@@ -1128,21 +1147,21 @@ function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = 
                 </div>` : ''}
             </div>
             <div class="mini-chart">
-                ${createMiniChart(analysis, priceHistory)}
+                ${createMiniChart(analysis, priceHistory, chartHistoryDays)}
             </div>
         </div>
     `;
 }
 
 // Create a simple mini chart using CSS
-function createMiniChart(analysis, priceHistory) {
+function createMiniChart(analysis, priceHistory, chartHistoryDays = 14) {
     if (!analysis) return '';
     
     // Create a unique ID for this chart for event handling
     const chartId = `chart-${Math.random().toString(36).substr(2, 9)}`;
     
     // Generate visual chart and insights
-    const chartContent = createSparklineChart(analysis, priceHistory);
+    const chartContent = createSparklineChart(analysis, priceHistory, chartHistoryDays);
     
     return `
         <div class="chart-placeholder" data-chart-id="${chartId}" data-analysis='${JSON.stringify(analysis)}'>
@@ -1155,15 +1174,15 @@ function createMiniChart(analysis, priceHistory) {
 }
 
 // Create sparkline chart and unique insights
-function createSparklineChart(analysis, priceHistory) {
-    // Generate sparkline bars (last 14 data points for visual clarity)
+function createSparklineChart(analysis, priceHistory, chartHistoryDays = 14) {
+    // Generate sparkline bars (last chartHistoryDays data points for visual clarity)
     let sparklineBars = '';
     let insights = [];
     let rangePosition = 50; // Default to middle of range
     
     if (priceHistory && priceHistory.length > 0) {
-        // Take last 14 points or all if less than 14
-        const recentData = priceHistory.slice(-14);
+        // Take last chartHistoryDays points or all if less than chartHistoryDays
+        const recentData = priceHistory.slice(-chartHistoryDays);
         const prices = recentData.map(p => p.price);
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
@@ -1251,7 +1270,7 @@ function createSparklineChart(analysis, priceHistory) {
     return `
         <div class="mini-sparkline">
             <div class="sparkline-header">
-                <span>Last 14 Days</span>
+                <span>Last ${chartHistoryDays} Days</span>
                 <span>${formatPriceExact(analysis.minPrice)} - ${formatPriceExact(analysis.maxPrice)} gp</span>
             </div>
             <div class="sparkline-chart">
