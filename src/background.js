@@ -1286,6 +1286,17 @@ function analyzePriceHistory(priceHistory) {
   const stdDev = Math.sqrt(variance);
   const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
 
+  // Categorize volatility
+  let volatilityCategory = 'Low';
+  let volatilityEmoji = '📱';
+  if (volatility > 15) {
+    volatilityCategory = 'High';
+    volatilityEmoji = '🔥';
+  } else if (volatility > 7) {
+    volatilityCategory = 'Moderate';
+    volatilityEmoji = '📊';
+  }
+
   // Advanced positioning metrics
   const range = maxPrice - minPrice;
   const rangePosition = range > 0 ? ((currentPrice - minPrice) / range * 100) : 50; // 0=at min, 100=at max
@@ -1296,6 +1307,37 @@ function analyzePriceHistory(priceHistory) {
     if (v < currentPrice) less++; else if (v === currentPrice) equal++;
   }
   const percentileRank = prices.length > 0 ? ((less + 0.5 * equal) / prices.length) * 100 : 50;
+
+  // Calculate trading signal
+  const currentVsAvgPct = avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+  let tradingSignal = 'Price in normal range';
+  let tradingSignalClass = 'neutral';
+  
+  if (currentVsAvgPct < -10 && rangePosition < 30) {
+    tradingSignal = 'Good buy opportunity';
+    tradingSignalClass = 'positive';
+  } else if (currentVsAvgPct > 10 && rangePosition > 70) {
+    tradingSignal = 'Good sell opportunity';
+    tradingSignalClass = 'negative';
+  } else if (currentVsAvgPct < -5) {
+    tradingSignal = 'Below average - consider buying';
+    tradingSignalClass = 'neutral';
+  } else if (currentVsAvgPct > 5) {
+    tradingSignal = 'Above average - consider selling';
+    tradingSignalClass = 'neutral';
+  }
+
+  // Determine position status
+  let positionStatus = 'Price in normal range';
+  if (rangePosition >= 90) {
+    positionStatus = 'At recent high';
+  } else if (rangePosition <= 10) {
+    positionStatus = 'At recent low';
+  } else if (rangePosition >= 70) {
+    positionStatus = 'Near recent high';
+  } else if (rangePosition <= 30) {
+    positionStatus = 'Near recent low';
+  }
   
   return {
     currentPrice,
@@ -1308,7 +1350,16 @@ function analyzePriceHistory(priceHistory) {
     trendEmoji,
     dataPoints: prices.length,
     priceRange: maxPrice - minPrice,
-    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0,
+    volatility,
+    volatilityCategory,
+    volatilityEmoji,
+    rangePosition,
+    zScore,
+    percentileRank,
+    tradingSignal,
+    tradingSignalClass,
+    positionStatus
   };
 }
 

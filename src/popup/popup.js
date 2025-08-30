@@ -1002,6 +1002,17 @@ function analyzePriceHistory(priceHistory) {
     const stdDev = Math.sqrt(variance);
     const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
 
+    // Categorize volatility
+    let volatilityCategory = 'Low';
+    let volatilityEmoji = '📱';
+    if (volatility > 15) {
+        volatilityCategory = 'High';
+        volatilityEmoji = '🔥';
+    } else if (volatility > 7) {
+        volatilityCategory = 'Moderate';
+        volatilityEmoji = '📊';
+    }
+
     // Advanced positioning metrics (align with background)
     const range = maxPrice - minPrice;
     const rangePosition = range > 0 ? ((currentPrice - minPrice) / range * 100) : 50; // 0 at low, 100 at high
@@ -1011,6 +1022,37 @@ function analyzePriceHistory(priceHistory) {
         if (v < currentPrice) less++; else if (v === currentPrice) equal++;
     }
     const percentileRank = prices.length > 0 ? ((less + 0.5 * equal) / prices.length) * 100 : 50;
+
+    // Calculate trading signal
+    const currentVsAvgPct = avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+    let tradingSignal = 'Price in normal range';
+    let tradingSignalClass = 'neutral';
+    
+    if (currentVsAvgPct < -10 && rangePosition < 30) {
+        tradingSignal = 'Good buy opportunity';
+        tradingSignalClass = 'positive';
+    } else if (currentVsAvgPct > 10 && rangePosition > 70) {
+        tradingSignal = 'Good sell opportunity';
+        tradingSignalClass = 'negative';
+    } else if (currentVsAvgPct < -5) {
+        tradingSignal = 'Below average - consider buying';
+        tradingSignalClass = 'neutral';
+    } else if (currentVsAvgPct > 5) {
+        tradingSignal = 'Above average - consider selling';
+        tradingSignalClass = 'neutral';
+    }
+
+    // Determine position status
+    let positionStatus = 'Price in normal range';
+    if (rangePosition >= 90) {
+        positionStatus = 'At recent high';
+    } else if (rangePosition <= 10) {
+        positionStatus = 'At recent low';
+    } else if (rangePosition >= 70) {
+        positionStatus = 'Near recent high';
+    } else if (rangePosition <= 30) {
+        positionStatus = 'Near recent low';
+    }
     
     return {
         currentPrice,
@@ -1023,7 +1065,16 @@ function analyzePriceHistory(priceHistory) {
         trendEmoji,
         dataPoints: prices.length,
         priceRange: maxPrice - minPrice,
-        priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+        priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0,
+        volatility,
+        volatilityCategory,
+        volatilityEmoji,
+        rangePosition,
+        zScore,
+        percentileRank,
+        tradingSignal,
+        tradingSignalClass,
+        positionStatus
     };
 }
 
@@ -1072,7 +1123,7 @@ function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = 
                 <div class="stat-row">
                     <span class="stat-label">Volatility:</span>
                     <span class="stat-value" style="color: #f39c12">
-                        Moderate 📊
+                        ${analysis.volatilityCategory} ${analysis.volatilityEmoji}
                     </span>
                 </div>` : ''}
             </div>
@@ -1185,34 +1236,16 @@ function createSparklineChart(analysis, priceHistory) {
             });
         }
         
-        // 5. Simplified buy/sell timing insight
-        const actualCurrentPrice = analysis.currentPrice;
-        const currentVsAvgPct = avgPrice > 0 ? ((actualCurrentPrice - avgPrice) / avgPrice) * 100 : 0;
-        const range = analysis.maxPrice - analysis.minPrice;
-        const rangePosition = range > 0 ? ((actualCurrentPrice - analysis.minPrice) / range * 100) : 50;
-
-        let timingInsight = 'Price in normal range';
-        let timingClass = 'insight-neutral';
-        
-        if (currentVsAvgPct < -10 && rangePosition < 30) {
-            timingInsight = 'Good buy opportunity';
-            timingClass = 'insight-positive';
-        } else if (currentVsAvgPct > 10 && rangePosition > 70) {
-            timingInsight = 'Good sell opportunity';
-            timingClass = 'insight-negative';
-        } else if (currentVsAvgPct < -5) {
-            timingInsight = 'Below average - consider buying';
-            timingClass = 'insight-neutral';
-        } else if (currentVsAvgPct > 5) {
-            timingInsight = 'Above average - consider selling';
-            timingClass = 'insight-neutral';
+        // 5. Use pre-calculated trading signal from analysis
+        if (analysis.tradingSignal && analysis.tradingSignalClass) {
+            const signalClass = analysis.tradingSignalClass === 'positive' ? 'insight-positive' : 
+                               analysis.tradingSignalClass === 'negative' ? 'insight-negative' : 'insight-neutral';
+            insights.push({
+                label: 'Trading signal:',
+                value: analysis.tradingSignal,
+                class: signalClass
+            });
         }
-        
-        insights.push({
-            label: 'Trading signal:',
-            value: timingInsight,
-            class: timingClass
-        });
     }
     
     return `
@@ -1234,7 +1267,7 @@ function createSparklineChart(analysis, priceHistory) {
                 `).join('')}
                 <div class="insight-row">
                     <span class="insight-label">Position:</span>
-                    <span class="insight-neutral">${rangePosition.toFixed(0)}% of 30d range</span>
+                    <span class="insight-neutral">${(analysis.rangePosition || rangePosition || 50).toFixed(0)}% of 30d range</span>
                 </div>
             </div>` : ''}
         </div>
