@@ -1181,10 +1181,13 @@ function analyzePriceHistory(priceHistory) {
     minPrice,
     maxPrice,
     avgPrice,
+    weeklyChange,
     weeklyChangePercent,
     trendDirection,
     trendEmoji,
-    dataPoints: prices.length
+    dataPoints: prices.length,
+    priceRange: maxPrice - minPrice,
+    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
   };
 }
 
