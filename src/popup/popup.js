@@ -1017,10 +1017,13 @@ function analyzePriceHistory(priceHistory) {
         minPrice,
         maxPrice,
         avgPrice,
+        weeklyChange,
         weeklyChangePercent,
         trendDirection,
         trendEmoji,
-        dataPoints: prices.length
+        dataPoints: prices.length,
+        priceRange: maxPrice - minPrice,
+        priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
     };
 }
 
@@ -1105,6 +1108,7 @@ function createSparklineChart(analysis, priceHistory) {
     // Generate sparkline bars (last 14 data points for visual clarity)
     let sparklineBars = '';
     let insights = [];
+    let rangePosition = 50; // Default to middle of range
     
     if (priceHistory && priceHistory.length > 0) {
         // Take last 14 points or all if less than 14
