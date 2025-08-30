@@ -337,8 +337,39 @@ async function removePriceHistory(itemId) {
 }
 
 // Get watchlist from storage (now synced across devices)
+// Storage fallback state tracking
+let isUsingLocalStorageFallback = false;
+
+// Check storage size and warn if approaching quota limits
+async function checkStorageQuota(data) {
+  const dataStr = JSON.stringify(data);
+  const sizeBytes = dataStr.length;
+  const maxSyncBytes = 102400; // Chrome sync storage limit is 100KB
+  const warningThreshold = maxSyncBytes * 0.8; // Warn at 80%
+  
+  if (sizeBytes > warningThreshold) {
+    const percentage = (sizeBytes / maxSyncBytes * 100).toFixed(1);
+    console.warn(`⚠️ Storage usage high: ${sizeBytes} bytes (${percentage}% of quota)`);
+    
+    if (sizeBytes > maxSyncBytes) {
+      console.error(`❌ Storage size (${sizeBytes} bytes) exceeds sync quota limit (${maxSyncBytes} bytes)`);
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+// Get watchlist from storage (now synced across devices)
 async function getWatchlist() {
   try {
+    // If we're in local storage fallback mode, use local storage
+    if (isUsingLocalStorageFallback) {
+      console.log('Using local storage fallback mode');
+      const result = await chrome.storage.local.get(['watchlist']);
+      return result.watchlist || {};
+    }
+    
     // First try to get from sync storage
     const syncResult = await chrome.storage.sync.get(['watchlist']);
     
@@ -358,7 +389,8 @@ async function getWatchlist() {
     return {};
   } catch (error) {
     console.error('Error getting watchlist from sync storage, falling back to local:', error);
-    // Fallback to local storage if sync fails
+    // Switch to local storage fallback mode
+    isUsingLocalStorageFallback = true;
     const result = await chrome.storage.local.get(['watchlist']);
     return result.watchlist || {};
   }
@@ -452,20 +484,35 @@ function extractItemIdFromUrl(url) {
 // Storage wrapper with enhanced logging and fallback handling
 async function saveSyncData(data, operationType = 'sync operation') {
   try {
+    // If we're already in local storage fallback mode, use local storage
+    if (isUsingLocalStorageFallback) {
+      console.log(`📱 Using local storage fallback for ${operationType}`);
+      await chrome.storage.local.set(data);
+      return false; // Indicate sync not used but save succeeded
+    }
+    
+    // Check quota before attempting to save
+    const quotaOk = await checkStorageQuota(data);
+    if (!quotaOk) {
+      throw new Error('Storage quota exceeded');
+    }
+    
     await chrome.storage.sync.set(data);
     return true;
   } catch (error) {
     // Check if it's a quota exceeded error
-    const isQuotaError = error.message && error.message.includes('quota');
-    const errorType = isQuotaError ? 'QUOTA_EXCEEDED' : 'SYNC_FAILED';
+    const isQuotaError = error.message && (error.message.includes('quota') || error.message.includes('Storage quota exceeded'));
     
     if (isQuotaError) {
-      console.warn(`⚠️ Sync storage quota exceeded during ${operationType}. Watchlist too large (${Object.keys(data.watchlist || {}).length} items). Falling back to local storage only - data will not sync across devices.`);
+      console.warn(`⚠️ Sync storage quota exceeded during ${operationType}. Watchlist too large (${Object.keys(data.watchlist || {}).length} items). Switching to local storage fallback - data will not sync across devices.`);
+      
+      // Switch to local storage fallback mode
+      isUsingLocalStorageFallback = true;
       
       // Fallback to local storage
       try {
         await chrome.storage.local.set(data);
-        console.warn(`📱 Data saved to local storage as fallback. To restore sync functionality, reduce watchlist to 80-90 items or fewer.`);
+        console.warn(`📱 Data saved to local storage as fallback. To restore sync functionality, reduce watchlist size or clear some items.`);
         return false; // Indicate sync failed but local save succeeded
       } catch (localError) {
         console.error(`❌ Both sync and local storage failed during ${operationType}:`, localError);
@@ -1134,20 +1181,10 @@ function analyzePriceHistory(priceHistory) {
     minPrice,
     maxPrice,
     avgPrice,
-    weeklyChange,
     weeklyChangePercent,
-    overallChange,
-    overallChangePercent,
     trendDirection,
     trendEmoji,
-    volatility,
-    stdDev,
-    rangePosition,
-    zScore,
-    percentileRank,
-    dataPoints: prices.length,
-    priceRange: maxPrice - minPrice,
-    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+    dataPoints: prices.length
   };
 }
 
