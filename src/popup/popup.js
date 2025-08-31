@@ -763,6 +763,12 @@ async function refreshSingleItem(updatedItem) {
         return;
     }
     
+    // Preserve current threshold input values before refresh
+    const existingLowInput = document.getElementById(`low-${updatedItem.id}`);
+    const existingHighInput = document.getElementById(`high-${updatedItem.id}`);
+    const currentLowValue = existingLowInput ? existingLowInput.value : '';
+    const currentHighValue = existingHighInput ? existingHighInput.value : '';
+    
     // Check if we're in compact view
     const isCompactView = existingItemElement.classList.contains('compact-item');
     
@@ -779,6 +785,16 @@ async function refreshSingleItem(updatedItem) {
     
     // Replace the old element with the new one
     existingItemElement.parentNode.replaceChild(newItemElement, existingItemElement);
+    
+    // Restore the current input values that user was working with
+    const newLowInput = document.getElementById(`low-${updatedItem.id}`);
+    const newHighInput = document.getElementById(`high-${updatedItem.id}`);
+    if (newLowInput && currentLowValue !== '') {
+        newLowInput.value = currentLowValue;
+    }
+    if (newHighInput && currentHighValue !== '') {
+        newHighInput.value = currentHighValue;
+    }
     
     // Re-attach event listeners for this specific item
     // Image error handling
