@@ -287,16 +287,55 @@
         
         .thresholds {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr auto;
             gap: 8px;
             margin-top: 8px;
             position: relative;
             z-index: 1;
+            align-items: end;
         }
         
         .threshold-group {
             display: flex;
             flex-direction: column;
+        }
+        
+        .threshold-update-group {
+            display: flex;
+            align-items: flex-end;
+            padding-bottom: 2px;
+        }
+        
+        .update-threshold-btn {
+            background: linear-gradient(145deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: 1px solid #5dade2;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            height: 30px; /* Match threshold input height */
+        }
+        
+        .update-threshold-btn:hover {
+            background: linear-gradient(145deg, #2980b9 0%, #21618c 100%);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+        }
+        
+        .update-threshold-btn:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        
+        .update-threshold-btn:disabled {
+            background: linear-gradient(145deg, #566573 0%, #515a5a 100%);
+            cursor: not-allowed;
+            opacity: 0.7;
         }
         
         .threshold-group label {
