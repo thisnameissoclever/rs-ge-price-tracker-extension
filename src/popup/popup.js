@@ -482,26 +482,26 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
         const highInput = document.getElementById(`high-${item.id}`);
         
         if (lowInput) {
-            // Auto-save on input changes
+            // Auto-save on input changes (without refreshing display to preserve focus)
             lowInput.addEventListener('input', () => {
-                autoSaveThreshold(item.id, 'low', item);
+                autoSaveThreshold(item.id, 'low', item, false);
             });
             
-            // Auto-save on blur (when user clicks away)
+            // Auto-save on blur with display refresh (when user clicks away)
             lowInput.addEventListener('blur', () => {
-                autoSaveThreshold(item.id, 'low', item);
+                autoSaveThreshold(item.id, 'low', item, true);
             });
         }
         
         if (highInput) {
-            // Auto-save on input changes
+            // Auto-save on input changes (without refreshing display to preserve focus)
             highInput.addEventListener('input', () => {
-                autoSaveThreshold(item.id, 'high', item);
+                autoSaveThreshold(item.id, 'high', item, false);
             });
             
-            // Auto-save on blur (when user clicks away)
+            // Auto-save on blur with display refresh (when user clicks away)
             highInput.addEventListener('blur', () => {
-                autoSaveThreshold(item.id, 'high', item);
+                autoSaveThreshold(item.id, 'high', item, true);
             });
         }
         
@@ -770,26 +770,26 @@ async function refreshSingleItem(updatedItem) {
     const highInput = document.getElementById(`high-${updatedItem.id}`);
     
     if (lowInput) {
-        // Auto-save on input changes
+        // Auto-save on input changes (without refreshing display to preserve focus)
         lowInput.addEventListener('input', () => {
-            autoSaveThreshold(updatedItem.id, 'low', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'low', updatedItem, false);
         });
         
-        // Auto-save on blur (when user clicks away)
+        // Auto-save on blur with display refresh (when user clicks away)
         lowInput.addEventListener('blur', () => {
-            autoSaveThreshold(updatedItem.id, 'low', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'low', updatedItem, true);
         });
     }
     
     if (highInput) {
-        // Auto-save on input changes
+        // Auto-save on input changes (without refreshing display to preserve focus)
         highInput.addEventListener('input', () => {
-            autoSaveThreshold(updatedItem.id, 'high', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'high', updatedItem, false);
         });
         
-        // Auto-save on blur (when user clicks away)
+        // Auto-save on blur with display refresh (when user clicks away)
         highInput.addEventListener('blur', () => {
-            autoSaveThreshold(updatedItem.id, 'high', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'high', updatedItem, true);
         });
     }
     
@@ -822,7 +822,7 @@ async function removeItem(itemId) {
 }
 
 // Auto-save threshold function with enhanced validation
-async function autoSaveThreshold(itemId, inputType, itemData) {
+async function autoSaveThreshold(itemId, inputType, itemData, shouldRefreshDisplay = true) {
     const lowInput = document.getElementById(`low-${itemId}`);
     const highInput = document.getElementById(`high-${itemId}`);
     
@@ -915,12 +915,14 @@ async function autoSaveThreshold(itemId, inputType, itemData) {
         });
         
         if (response.success) {
-            // Silently refresh the item display
-            const updatedItemResponse = await sendMessage({ action: 'getWatchlist' });
-            if (updatedItemResponse.success) {
-                const updatedItem = updatedItemResponse.data[itemId];
-                if (updatedItem) {
-                    await refreshSingleItem(updatedItem);
+            // Only refresh the item display if requested (to avoid losing focus during typing)
+            if (shouldRefreshDisplay) {
+                const updatedItemResponse = await sendMessage({ action: 'getWatchlist' });
+                if (updatedItemResponse.success) {
+                    const updatedItem = updatedItemResponse.data[itemId];
+                    if (updatedItem) {
+                        await refreshSingleItem(updatedItem);
+                    }
                 }
             }
         } else {
