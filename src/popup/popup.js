@@ -482,26 +482,26 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
         const highInput = document.getElementById(`high-${item.id}`);
         
         if (lowInput) {
-            // Auto-save on input changes
+            // Auto-save on input changes (without refreshing display to preserve focus)
             lowInput.addEventListener('input', () => {
-                autoSaveThreshold(item.id, 'low', item);
+                autoSaveThreshold(item.id, 'low', item, false);
             });
             
-            // Auto-save on blur (when user clicks away)
+            // Auto-save on blur with display refresh (when user clicks away)
             lowInput.addEventListener('blur', () => {
-                autoSaveThreshold(item.id, 'low', item);
+                autoSaveThreshold(item.id, 'low', item, true);
             });
         }
         
         if (highInput) {
-            // Auto-save on input changes
+            // Auto-save on input changes (without refreshing display to preserve focus)
             highInput.addEventListener('input', () => {
-                autoSaveThreshold(item.id, 'high', item);
+                autoSaveThreshold(item.id, 'high', item, false);
             });
             
-            // Auto-save on blur (when user clicks away)
+            // Auto-save on blur with display refresh (when user clicks away)
             highInput.addEventListener('blur', () => {
-                autoSaveThreshold(item.id, 'high', item);
+                autoSaveThreshold(item.id, 'high', item, true);
             });
         }
         
@@ -770,26 +770,26 @@ async function refreshSingleItem(updatedItem) {
     const highInput = document.getElementById(`high-${updatedItem.id}`);
     
     if (lowInput) {
-        // Auto-save on input changes
+        // Auto-save on input changes (without refreshing display to preserve focus)
         lowInput.addEventListener('input', () => {
-            autoSaveThreshold(updatedItem.id, 'low', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'low', updatedItem, false);
         });
         
-        // Auto-save on blur (when user clicks away)
+        // Auto-save on blur with display refresh (when user clicks away)
         lowInput.addEventListener('blur', () => {
-            autoSaveThreshold(updatedItem.id, 'low', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'low', updatedItem, true);
         });
     }
     
     if (highInput) {
-        // Auto-save on input changes
+        // Auto-save on input changes (without refreshing display to preserve focus)
         highInput.addEventListener('input', () => {
-            autoSaveThreshold(updatedItem.id, 'high', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'high', updatedItem, false);
         });
         
-        // Auto-save on blur (when user clicks away)
+        // Auto-save on blur with display refresh (when user clicks away)
         highInput.addEventListener('blur', () => {
-            autoSaveThreshold(updatedItem.id, 'high', updatedItem);
+            autoSaveThreshold(updatedItem.id, 'high', updatedItem, true);
         });
     }
     
@@ -822,7 +822,7 @@ async function removeItem(itemId) {
 }
 
 // Auto-save threshold function with enhanced validation
-async function autoSaveThreshold(itemId, inputType, itemData) {
+async function autoSaveThreshold(itemId, inputType, itemData, shouldRefreshDisplay = true) {
     const lowInput = document.getElementById(`low-${itemId}`);
     const highInput = document.getElementById(`high-${itemId}`);
     
@@ -832,75 +832,94 @@ async function autoSaveThreshold(itemId, inputType, itemData) {
     }
 
     try {
-        // Get current values
+        // Get the current stored threshold values to preserve the field not being edited
+        const existingLowThreshold = itemData ? itemData.lowThreshold : null;
+        const existingHighThreshold = itemData ? itemData.highThreshold : null;
+        
+        // Get current DOM values  
         let lowValue = lowInput.value.trim();
         let highValue = highInput.value.trim();
         
         // Use the passed item data instead of fetching entire watchlist
         const currentPrice = itemData ? itemData.currentPrice : null;
         
-        // Process low threshold
-        let lowPrice = null;
-        if (lowValue) {
-            if (lowValue.startsWith('-')) {
-                // Handle negative numbers - subtract from current price
-                const negativeAmount = Math.abs(parseFloat(lowValue));
-                if (!isNaN(negativeAmount) && currentPrice) {
-                    lowPrice = Math.max(0, currentPrice - negativeAmount);
-                    lowInput.value = lowPrice.toString();
+        // Start with existing values to preserve what wasn't edited
+        let lowPrice = existingLowThreshold;
+        let highPrice = existingHighThreshold;
+        
+        // Only update the threshold that was being edited
+        if (inputType === 'low') {
+            // Process low threshold
+            if (lowValue) {
+                if (lowValue.startsWith('-')) {
+                    // Handle negative numbers - subtract from current price
+                    const negativeAmount = Math.abs(parseFloat(lowValue));
+                    if (!isNaN(negativeAmount) && currentPrice) {
+                        lowPrice = Math.max(0, currentPrice - negativeAmount);
+                        lowInput.value = lowPrice.toString();
+                    } else {
+                        lowInput.value = ''; // Clear invalid input
+                        lowPrice = null;
+                    }
                 } else {
-                    lowInput.value = ''; // Clear invalid input
+                    const parsedLow = parseFloat(lowValue);
+                    if (isNaN(parsedLow)) {
+                        lowInput.value = ''; // Clear invalid input
+                        lowPrice = null;
+                    } else if (parsedLow > 1000000000000) { // 1 trillion limit
+                        lowPrice = 1000000000000;
+                        lowInput.value = lowPrice.toString();
+                    } else if (parsedLow < 0) {
+                        lowInput.value = ''; // Clear negative input that doesn't start with '-'
+                        lowPrice = null;
+                    } else {
+                        lowPrice = parsedLow;
+                    }
                 }
             } else {
-                lowPrice = parseFloat(lowValue);
-                if (isNaN(lowPrice)) {
-                    lowInput.value = ''; // Clear invalid input
-                    lowPrice = null;
-                } else if (lowPrice > 1000000000000) { // 1 trillion limit
-                    lowPrice = 1000000000000;
-                    lowInput.value = lowPrice.toString();
-                } else if (lowPrice < 0) {
-                    lowInput.value = ''; // Clear negative input that doesn't start with '-'
-                    lowPrice = null;
-                }
+                lowPrice = null; // Empty field means no threshold
             }
-        }
-        
-        // Process high threshold
-        let highPrice = null;
-        if (highValue) {
-            if (highValue.startsWith('-')) {
-                // Handle negative numbers - subtract from current price
-                const negativeAmount = Math.abs(parseFloat(highValue));
-                if (!isNaN(negativeAmount) && currentPrice) {
-                    highPrice = Math.max(0, currentPrice - negativeAmount);
-                    highInput.value = highPrice.toString();
-                } else {
-                    highInput.value = ''; // Clear invalid input
-                }
-            } else {
-                highPrice = parseFloat(highValue);
-                if (isNaN(highPrice)) {
-                    highInput.value = ''; // Clear invalid input
-                    highPrice = null;
-                } else if (highPrice > 1000000000000) { // 1 trillion limit
-                    highPrice = 1000000000000;
-                    highInput.value = highPrice.toString();
-                } else if (highPrice < 0) {
-                    highInput.value = ''; // Clear negative input that doesn't start with '-'
-                    highPrice = null;
-                }
-            }
-        }
-        
-        // Validate that low < high if both are set
-        if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
-            // If user just changed low and it's >= high, clear high
-            // If user just changed high and it's <= low, clear low
-            if (inputType === 'low') {
+            
+            // Validate that low < high if both are set
+            if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
                 highInput.value = '';
                 highPrice = null;
-            } else if (inputType === 'high') {
+            }
+            
+        } else if (inputType === 'high') {
+            // Process high threshold  
+            if (highValue) {
+                if (highValue.startsWith('-')) {
+                    // Handle negative numbers - subtract from current price
+                    const negativeAmount = Math.abs(parseFloat(highValue));
+                    if (!isNaN(negativeAmount) && currentPrice) {
+                        highPrice = Math.max(0, currentPrice - negativeAmount);
+                        highInput.value = highPrice.toString();
+                    } else {
+                        highInput.value = ''; // Clear invalid input
+                        highPrice = null;
+                    }
+                } else {
+                    const parsedHigh = parseFloat(highValue);
+                    if (isNaN(parsedHigh)) {
+                        highInput.value = ''; // Clear invalid input
+                        highPrice = null;
+                    } else if (parsedHigh > 1000000000000) { // 1 trillion limit
+                        highPrice = 1000000000000;
+                        highInput.value = highPrice.toString();
+                    } else if (parsedHigh < 0) {
+                        highInput.value = ''; // Clear negative input that doesn't start with '-'
+                        highPrice = null;
+                    } else {
+                        highPrice = parsedHigh;
+                    }
+                }
+            } else {
+                highPrice = null; // Empty field means no threshold
+            }
+            
+            // Validate that low < high if both are set
+            if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
                 lowInput.value = '';
                 lowPrice = null;
             }
@@ -915,12 +934,14 @@ async function autoSaveThreshold(itemId, inputType, itemData) {
         });
         
         if (response.success) {
-            // Silently refresh the item display
-            const updatedItemResponse = await sendMessage({ action: 'getWatchlist' });
-            if (updatedItemResponse.success) {
-                const updatedItem = updatedItemResponse.data[itemId];
-                if (updatedItem) {
-                    await refreshSingleItem(updatedItem);
+            // Only refresh the item display if requested (to avoid losing focus during typing)
+            if (shouldRefreshDisplay) {
+                const updatedItemResponse = await sendMessage({ action: 'getWatchlist' });
+                if (updatedItemResponse.success) {
+                    const updatedItem = updatedItemResponse.data[itemId];
+                    if (updatedItem) {
+                        await refreshSingleItem(updatedItem);
+                    }
                 }
             }
         } else {
