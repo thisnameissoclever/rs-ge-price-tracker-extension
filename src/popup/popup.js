@@ -832,75 +832,94 @@ async function autoSaveThreshold(itemId, inputType, itemData, shouldRefreshDispl
     }
 
     try {
-        // Get current values
+        // Get the current stored threshold values to preserve the field not being edited
+        const existingLowThreshold = itemData ? itemData.lowThreshold : null;
+        const existingHighThreshold = itemData ? itemData.highThreshold : null;
+        
+        // Get current DOM values  
         let lowValue = lowInput.value.trim();
         let highValue = highInput.value.trim();
         
         // Use the passed item data instead of fetching entire watchlist
         const currentPrice = itemData ? itemData.currentPrice : null;
         
-        // Process low threshold
-        let lowPrice = null;
-        if (lowValue) {
-            if (lowValue.startsWith('-')) {
-                // Handle negative numbers - subtract from current price
-                const negativeAmount = Math.abs(parseFloat(lowValue));
-                if (!isNaN(negativeAmount) && currentPrice) {
-                    lowPrice = Math.max(0, currentPrice - negativeAmount);
-                    lowInput.value = lowPrice.toString();
+        // Start with existing values to preserve what wasn't edited
+        let lowPrice = existingLowThreshold;
+        let highPrice = existingHighThreshold;
+        
+        // Only update the threshold that was being edited
+        if (inputType === 'low') {
+            // Process low threshold
+            if (lowValue) {
+                if (lowValue.startsWith('-')) {
+                    // Handle negative numbers - subtract from current price
+                    const negativeAmount = Math.abs(parseFloat(lowValue));
+                    if (!isNaN(negativeAmount) && currentPrice) {
+                        lowPrice = Math.max(0, currentPrice - negativeAmount);
+                        lowInput.value = lowPrice.toString();
+                    } else {
+                        lowInput.value = ''; // Clear invalid input
+                        lowPrice = null;
+                    }
                 } else {
-                    lowInput.value = ''; // Clear invalid input
+                    const parsedLow = parseFloat(lowValue);
+                    if (isNaN(parsedLow)) {
+                        lowInput.value = ''; // Clear invalid input
+                        lowPrice = null;
+                    } else if (parsedLow > 1000000000000) { // 1 trillion limit
+                        lowPrice = 1000000000000;
+                        lowInput.value = lowPrice.toString();
+                    } else if (parsedLow < 0) {
+                        lowInput.value = ''; // Clear negative input that doesn't start with '-'
+                        lowPrice = null;
+                    } else {
+                        lowPrice = parsedLow;
+                    }
                 }
             } else {
-                lowPrice = parseFloat(lowValue);
-                if (isNaN(lowPrice)) {
-                    lowInput.value = ''; // Clear invalid input
-                    lowPrice = null;
-                } else if (lowPrice > 1000000000000) { // 1 trillion limit
-                    lowPrice = 1000000000000;
-                    lowInput.value = lowPrice.toString();
-                } else if (lowPrice < 0) {
-                    lowInput.value = ''; // Clear negative input that doesn't start with '-'
-                    lowPrice = null;
-                }
+                lowPrice = null; // Empty field means no threshold
             }
-        }
-        
-        // Process high threshold
-        let highPrice = null;
-        if (highValue) {
-            if (highValue.startsWith('-')) {
-                // Handle negative numbers - subtract from current price
-                const negativeAmount = Math.abs(parseFloat(highValue));
-                if (!isNaN(negativeAmount) && currentPrice) {
-                    highPrice = Math.max(0, currentPrice - negativeAmount);
-                    highInput.value = highPrice.toString();
-                } else {
-                    highInput.value = ''; // Clear invalid input
-                }
-            } else {
-                highPrice = parseFloat(highValue);
-                if (isNaN(highPrice)) {
-                    highInput.value = ''; // Clear invalid input
-                    highPrice = null;
-                } else if (highPrice > 1000000000000) { // 1 trillion limit
-                    highPrice = 1000000000000;
-                    highInput.value = highPrice.toString();
-                } else if (highPrice < 0) {
-                    highInput.value = ''; // Clear negative input that doesn't start with '-'
-                    highPrice = null;
-                }
-            }
-        }
-        
-        // Validate that low < high if both are set
-        if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
-            // If user just changed low and it's >= high, clear high
-            // If user just changed high and it's <= low, clear low
-            if (inputType === 'low') {
+            
+            // Validate that low < high if both are set
+            if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
                 highInput.value = '';
                 highPrice = null;
-            } else if (inputType === 'high') {
+            }
+            
+        } else if (inputType === 'high') {
+            // Process high threshold  
+            if (highValue) {
+                if (highValue.startsWith('-')) {
+                    // Handle negative numbers - subtract from current price
+                    const negativeAmount = Math.abs(parseFloat(highValue));
+                    if (!isNaN(negativeAmount) && currentPrice) {
+                        highPrice = Math.max(0, currentPrice - negativeAmount);
+                        highInput.value = highPrice.toString();
+                    } else {
+                        highInput.value = ''; // Clear invalid input
+                        highPrice = null;
+                    }
+                } else {
+                    const parsedHigh = parseFloat(highValue);
+                    if (isNaN(parsedHigh)) {
+                        highInput.value = ''; // Clear invalid input
+                        highPrice = null;
+                    } else if (parsedHigh > 1000000000000) { // 1 trillion limit
+                        highPrice = 1000000000000;
+                        highInput.value = highPrice.toString();
+                    } else if (parsedHigh < 0) {
+                        highInput.value = ''; // Clear negative input that doesn't start with '-'
+                        highPrice = null;
+                    } else {
+                        highPrice = parsedHigh;
+                    }
+                }
+            } else {
+                highPrice = null; // Empty field means no threshold
+            }
+            
+            // Validate that low < high if both are set
+            if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
                 lowInput.value = '';
                 lowPrice = null;
             }
