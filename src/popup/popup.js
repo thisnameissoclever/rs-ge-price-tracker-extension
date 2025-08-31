@@ -924,6 +924,16 @@ async function updateThresholds(itemId) {
                     lowInput.value = ''; // Clear invalid input
                     lowPrice = null;
                 }
+            } else if (lowValue.startsWith('+')) {
+                // Handle + prefix - add to current price
+                const additionalAmount = parseFloat(lowValue.substring(1));
+                if (!isNaN(additionalAmount) && currentPrice) {
+                    lowPrice = currentPrice + additionalAmount;
+                    lowInput.value = lowPrice.toString();
+                } else {
+                    lowInput.value = ''; // Clear invalid input
+                    lowPrice = null;
+                }
             } else {
                 const parsedLow = parseFloat(lowValue);
                 if (isNaN(parsedLow)) {
@@ -975,6 +985,9 @@ async function updateThresholds(itemId) {
         // Validate that low < high if both are set
         if (lowPrice !== null && highPrice !== null && lowPrice >= highPrice) {
             showError('Low alert must be less than high alert. Please adjust your values.');
+            // Re-enable button before early return
+            updateBtn.disabled = false;
+            updateBtn.textContent = 'Update';
             return;
         }
 
