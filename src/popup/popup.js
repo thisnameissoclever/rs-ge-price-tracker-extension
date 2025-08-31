@@ -1021,13 +1021,13 @@ function analyzePriceHistory(priceHistory) {
     const stdDev = Math.sqrt(variance);
     const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
 
-    // Categorize volatility
+    // Categorize volatility (adjusted for RuneScape market behavior)
     let volatilityCategory = 'Low';
     let volatilityEmoji = '📱';
-    if (volatility > 15) {
+    if (volatility > 8) {
         volatilityCategory = 'High';
         volatilityEmoji = '🔥';
-    } else if (volatility > 7) {
+    } else if (volatility > 3) {
         volatilityCategory = 'Moderate';
         volatilityEmoji = '📊';
     }

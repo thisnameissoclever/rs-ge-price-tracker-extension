@@ -6,7 +6,7 @@ Make more gp with data you can act on. This Chrome extension tracks RS3 Grand Ex
 
 - Smart alerts: set buy/sell thresholds and get desktop notifications when prices cross them.
 - Actionable market insights: 30-day history, trend direction, volatility, and position-in-range.
-- Better signals (v1.5.2): multi-signal scoring using z-score, percentile rank, and 30‑day range position for clearer buy/sell hints.
+- Better signals (v1.6.0): accurate volatility categorization and real-time price analysis with configurable chart periods.
 - Works in the background: scheduled checks you control; pop-out tab with a clean column layout for fast scanning.
 - One-click add from RS3 GE pages; item images for quick scanning. Sync across devices; export/import for backups.
 
@@ -27,7 +27,7 @@ Make more gp with data you can act on. This Chrome extension tracks RS3 Grand Ex
 
 Tip: For sync reliability, keep watchlists to ~80–90 items (100–200 max).
 
-## 🧠 How trading signals work (v1.5.2)
+## 🧠 How trading signals work (v1.6.0)
 
 - Z-score: how far current price is from the 30-day average (in standard deviations)
 - Percentile rank: where today’s price sits vs the last 30 days (0–100%)
@@ -36,7 +36,13 @@ Tip: For sync reliability, keep watchlists to ~80–90 items (100–200 max).
 
 ## 🔄 Changelog
 
-### 🚀 Version 1.5.2 (Latest)
+### 🚀 Version 1.6.0 (Latest)
+- **Accurate volatility analysis**: Fixed volatility thresholds for RuneScape markets - Low (0-3%), Moderate (3-8%), High (>8%)
+- **Real-time price analysis**: Popup always uses fresh price data instead of stale cached analysis
+- **Configurable chart history**: Choose 7, 14, 30, 60, or 90 days for price charts (default: 30 days)
+- **Improved trading signals**: Better buy/sell recommendations based on current market position vs range
+
+### 🔧 Version 1.5.2
 - Smarter trading hints: multi-signal scoring (z-score, percentile, 30-day range position)
 - Pop-out tab uses a clean, columnar layout like Settings for faster scanning
 - README cleanup focused on profit-driving features; updated docs; clear privacy policy

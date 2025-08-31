@@ -508,42 +508,7 @@ async function migrateLegacyWatchlist(legacyWatchlist) {
   }
 }
 
-// Price history storage management
-async function storePriceHistory(itemId, priceHistory) {
-  try {
-    await chrome.storage.local.set({
-      [`priceHistory_${itemId}`]: priceHistory
-    });
-    console.log(`Stored price history for item ${itemId} (${priceHistory.length} data points)`);
-  } catch (error) {
-    console.error(`Failed to store price history for item ${itemId}:`, error);
-  }
-}
 
-async function getPriceHistory(itemId) {
-  try {
-    const result = await chrome.storage.local.get([`priceHistory_${itemId}`]);
-    return result[`priceHistory_${itemId}`] || null;
-  } catch (error) {
-    console.error(`Failed to get price history for item ${itemId}:`, error);
-    return null;
-  }
-}
-
-async function removePriceHistory(itemId) {
-  try {
-    await chrome.storage.local.remove([`priceHistory_${itemId}`]);
-    console.log(`Removed price history for item ${itemId}`);
-  } catch (error) {
-    console.error(`Failed to remove price history for item ${itemId}:`, error);
-  }
-}
-
-// Extract item ID from RS URL
-function extractItemIdFromUrl(url) {
-  const match = url.match(/obj=(\d+)/);
-  return match ? match[1] : null;
-}
 
 // Remove item from watchlist using hybrid storage architecture
 async function removeItemFromWatchlist(itemId) {
@@ -1286,13 +1251,13 @@ function analyzePriceHistory(priceHistory) {
   const stdDev = Math.sqrt(variance);
   const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
 
-  // Categorize volatility
+  // Categorize volatility (adjusted for RuneScape market behavior)
   let volatilityCategory = 'Low';
   let volatilityEmoji = '📱';
-  if (volatility > 15) {
+  if (volatility > 8) {
     volatilityCategory = 'High';
     volatilityEmoji = '🔥';
-  } else if (volatility > 7) {
+  } else if (volatility > 3) {
     volatilityCategory = 'Moderate';
     volatilityEmoji = '📊';
   }
