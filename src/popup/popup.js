@@ -45,6 +45,20 @@ async function getSettings() {
     }
 }
 
+// Get color for volatility category
+function getVolatilityColor(category) {
+    switch (category) {
+        case 'Low':
+            return '#52b788'; // Mid green
+        case 'Moderate':
+            return '#f39c12'; // Current orange (keep as is)
+        case 'High':
+            return '#e74c3c'; // Mid red
+        default:
+            return '#f39c12'; // Default to orange
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Popup loaded');
     
@@ -1141,7 +1155,7 @@ function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = 
                 ${analysis.dataPoints > 5 ? `
                 <div class="stat-row">
                     <span class="stat-label">Volatility:</span>
-                    <span class="stat-value" style="color: #f39c12">
+                    <span class="stat-value" style="color: ${getVolatilityColor(analysis.volatilityCategory)}">
                         ${analysis.volatilityCategory} ${analysis.volatilityEmoji}
                     </span>
                 </div>` : ''}
