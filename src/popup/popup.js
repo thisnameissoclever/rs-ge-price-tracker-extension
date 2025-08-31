@@ -484,24 +484,24 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
         if (lowInput) {
             // Auto-save on input changes
             lowInput.addEventListener('input', () => {
-                autoSaveThreshold(item.id, 'low');
+                autoSaveThreshold(item.id, 'low', item);
             });
             
             // Auto-save on blur (when user clicks away)
             lowInput.addEventListener('blur', () => {
-                autoSaveThreshold(item.id, 'low');
+                autoSaveThreshold(item.id, 'low', item);
             });
         }
         
         if (highInput) {
             // Auto-save on input changes
             highInput.addEventListener('input', () => {
-                autoSaveThreshold(item.id, 'high');
+                autoSaveThreshold(item.id, 'high', item);
             });
             
             // Auto-save on blur (when user clicks away)
             highInput.addEventListener('blur', () => {
-                autoSaveThreshold(item.id, 'high');
+                autoSaveThreshold(item.id, 'high', item);
             });
         }
         
@@ -772,24 +772,24 @@ async function refreshSingleItem(updatedItem) {
     if (lowInput) {
         // Auto-save on input changes
         lowInput.addEventListener('input', () => {
-            autoSaveThreshold(updatedItem.id, 'low');
+            autoSaveThreshold(updatedItem.id, 'low', updatedItem);
         });
         
         // Auto-save on blur (when user clicks away)
         lowInput.addEventListener('blur', () => {
-            autoSaveThreshold(updatedItem.id, 'low');
+            autoSaveThreshold(updatedItem.id, 'low', updatedItem);
         });
     }
     
     if (highInput) {
         // Auto-save on input changes
         highInput.addEventListener('input', () => {
-            autoSaveThreshold(updatedItem.id, 'high');
+            autoSaveThreshold(updatedItem.id, 'high', updatedItem);
         });
         
         // Auto-save on blur (when user clicks away)
         highInput.addEventListener('blur', () => {
-            autoSaveThreshold(updatedItem.id, 'high');
+            autoSaveThreshold(updatedItem.id, 'high', updatedItem);
         });
     }
     
@@ -822,7 +822,7 @@ async function removeItem(itemId) {
 }
 
 // Auto-save threshold function with enhanced validation
-async function autoSaveThreshold(itemId, inputType) {
+async function autoSaveThreshold(itemId, inputType, itemData) {
     const lowInput = document.getElementById(`low-${itemId}`);
     const highInput = document.getElementById(`high-${itemId}`);
     
@@ -836,15 +836,8 @@ async function autoSaveThreshold(itemId, inputType) {
         let lowValue = lowInput.value.trim();
         let highValue = highInput.value.trim();
         
-        // Get current item data for negative number handling
-        const watchlistResponse = await sendMessage({ action: 'getWatchlist' });
-        if (!watchlistResponse.success) {
-            console.error('Failed to get watchlist for validation');
-            return;
-        }
-        
-        const item = watchlistResponse.data[itemId];
-        const currentPrice = item ? item.currentPrice : null;
+        // Use the passed item data instead of fetching entire watchlist
+        const currentPrice = itemData ? itemData.currentPrice : null;
         
         // Process low threshold
         let lowPrice = null;
