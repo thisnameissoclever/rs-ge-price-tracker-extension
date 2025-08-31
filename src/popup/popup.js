@@ -59,6 +59,33 @@ function getVolatilityColor(category) {
     }
 }
 
+// Format daily price change with appropriate colors
+function formatDailyChange(priceAnalysis, priceFormat = 'gp') {
+    if (!priceAnalysis || priceAnalysis.dailyChange === undefined || priceAnalysis.dailyChange === null) {
+        return '';
+    }
+    
+    const dailyChange = priceAnalysis.dailyChange;
+    const dailyChangePercent = priceAnalysis.dailyChangePercent || 0;
+    
+    // Determine color based on change direction
+    let color = '#bdc3c7'; // Default light grey for no change
+    if (dailyChange > 0) {
+        color = '#27ae60'; // Green for positive change
+    } else if (dailyChange < 0) {
+        color = '#e74c3c'; // Red for negative change
+    }
+    
+    // Format the change with proper sign
+    const changePrefix = dailyChange > 0 ? '+' : '';
+    const formattedChange = formatPrice(Math.abs(dailyChange), priceFormat);
+    const formattedPercent = dailyChangePercent.toFixed(1);
+    
+    return `<span style="color: ${color}; font-size: 0.9em; margin-left: 5px;" title="Change from yesterday">
+        (${changePrefix}${formattedChange} • ${changePrefix}${formattedPercent}%)
+    </span>`;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Popup loaded');
     
@@ -691,6 +718,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
                             ${alertIndicator}
                             <span class="compact-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
                                 ${item.currentPrice ? formatPrice(item.currentPrice, priceFormat) : 'Unknown'}
+                                ${item.currentPrice && item.priceAnalysis ? formatDailyChange(item.priceAnalysis, priceFormat) : ''}
                             </span>
                         </div>
                         <div class="compact-controls">
@@ -734,6 +762,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
             <div class="item-price">
                 <span class="current-price ${alertStatus !== 'normal' ? 'current-price-alert' : ''}">
                     Current Price: <strong>${item.currentPrice ? formatPrice(item.currentPrice, priceFormat) : 'Unknown'}</strong>
+                    ${item.currentPrice && item.priceAnalysis ? formatDailyChange(item.priceAnalysis, priceFormat) : ''}
                 </span>
                 ${item.currentPrice ? `<small class="time-since ${alertStatus !== 'normal' ? 'time-since-alert' : ''}">${timeSinceCheck}</small>` : ''}
             </div>
