@@ -766,8 +766,7 @@ async function refreshSingleItem(updatedItem) {
     // Preserve current threshold input values before refresh
     const existingLowInput = document.getElementById(`low-${updatedItem.id}`);
     const existingHighInput = document.getElementById(`high-${updatedItem.id}`);
-    const currentLowValue = existingLowInput ? existingLowInput.value : '';
-    const currentHighValue = existingHighInput ? existingHighInput.value : '';
+    const currentHighValue = existingHighInput?.value || '';
     
     // Check if we're in compact view
     const isCompactView = existingItemElement.classList.contains('compact-item');
