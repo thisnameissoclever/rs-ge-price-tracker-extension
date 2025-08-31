@@ -918,7 +918,7 @@ async function updateThresholds(itemId) {
                 // Handle negative numbers - subtract from current price
                 const negativeAmount = Math.abs(parseFloat(lowValue));
                 if (!isNaN(negativeAmount) && currentPrice) {
-                    lowPrice = Math.max(0, currentPrice - negativeAmount);
+                    lowPrice = Math.round(Math.max(0, currentPrice - negativeAmount));
                     lowInput.value = lowPrice.toString();
                 } else {
                     lowInput.value = ''; // Clear invalid input
@@ -928,7 +928,7 @@ async function updateThresholds(itemId) {
                 // Handle + prefix - add to current price
                 const additionalAmount = parseFloat(lowValue.substring(1));
                 if (!isNaN(additionalAmount) && currentPrice) {
-                    lowPrice = currentPrice + additionalAmount;
+                    lowPrice = Math.round(currentPrice + additionalAmount);
                     lowInput.value = lowPrice.toString();
                 } else {
                     lowInput.value = ''; // Clear invalid input
@@ -958,7 +958,7 @@ async function updateThresholds(itemId) {
                 // Handle + prefix - add to current price
                 const additionalAmount = parseFloat(highValue.substring(1));
                 if (!isNaN(additionalAmount) && currentPrice) {
-                    highPrice = currentPrice + additionalAmount;
+                    highPrice = Math.round(currentPrice + additionalAmount);
                     highInput.value = highPrice.toString();
                 } else {
                     highInput.value = ''; // Clear invalid input
