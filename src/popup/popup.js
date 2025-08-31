@@ -12,6 +12,7 @@ const DEFAULT_SETTINGS = {
     priceFormat: 'gp',
     sortOrder: 'date-added',
     showHistory: true,
+    chartHistoryDays: 14, // Default to 14 days for chart history
     compactView: false,
     defaultAlertType: 'both',
     alertThreshold: 10,
@@ -505,23 +506,41 @@ async function showPriceHistoryForItem(item, isCompactView) {
     try {
         const settings = await getSettings();
         
-        if (settings.showHistory && item.priceAnalysis) {
+        if (settings.showHistory && (item.priceAnalysis || item.lastHistoryUpdate)) {
             const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
             if (historyContainer) {
                 // Get actual price history data for the chart
                 const priceHistory = await getPriceHistory(item.id);
                 
-                historyContainer.innerHTML = createPriceHistoryHTML(item.priceAnalysis, isCompactView, priceHistory);
-                historyContainer.style.display = 'block';
+                // Always recalculate analysis with fresh price history data
+                let analysis = null;
+                if (priceHistory && priceHistory.length > 0) {
+                    analysis = analyzePriceHistory(priceHistory);
+                    console.log(`🔄 Recalculated fresh analysis for ${item.name}:`, {
+                        volatility: analysis.volatility.toFixed(2) + '%',
+                        category: analysis.volatilityCategory,
+                        rangePosition: analysis.rangePosition.toFixed(1) + '%',
+                        tradingSignal: analysis.tradingSignal
+                    });
+                } else {
+                    // Fallback to stored analysis if no price history available
+                    analysis = item.priceAnalysis;
+                    console.log(`📦 Using stored analysis for ${item.name} (no fresh price history)`);
+                }
                 
-                // Add hover event listeners for chart tooltips
-                addChartHoverListeners(historyContainer);
-                
-                console.log(`📊 Showing price analysis for ${item.name} with ${priceHistory ? priceHistory.length : 0} history points`);
-            } else {
-                console.log(`❌ No history container found for ${item.name}`);
+                if (analysis) {
+                    historyContainer.innerHTML = createPriceHistoryHTML(analysis, isCompactView, priceHistory, settings.chartHistoryDays);
+                    historyContainer.style.display = 'block';
+                    
+                    // Add hover event listeners for chart tooltips
+                    addChartHoverListeners(historyContainer);
+                    
+                    console.log(`📊 Showing fresh price analysis for ${item.name} with ${priceHistory ? priceHistory.length : 0} history points`);
+                } else {
+                    console.log(`❌ No analysis data available for ${item.name}`);
+                }
             }
-        } else if (settings.showHistory && !item.priceAnalysis) {
+        } else if (settings.showHistory && (!item.priceAnalysis && !item.lastHistoryUpdate)) {
             // Show a placeholder indicating history will be available after next refresh
             const historyContainer = document.querySelector(`[data-item-id="${item.id}"] .price-history`);
             if (historyContainer) {
@@ -1002,6 +1021,17 @@ function analyzePriceHistory(priceHistory) {
     const stdDev = Math.sqrt(variance);
     const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
 
+    // Categorize volatility (adjusted for RuneScape market behavior)
+    let volatilityCategory = 'Low';
+    let volatilityEmoji = '📱';
+    if (volatility > 8) {
+        volatilityCategory = 'High';
+        volatilityEmoji = '🔥';
+    } else if (volatility > 3) {
+        volatilityCategory = 'Moderate';
+        volatilityEmoji = '📊';
+    }
+
     // Advanced positioning metrics (align with background)
     const range = maxPrice - minPrice;
     const rangePosition = range > 0 ? ((currentPrice - minPrice) / range * 100) : 50; // 0 at low, 100 at high
@@ -1011,6 +1041,37 @@ function analyzePriceHistory(priceHistory) {
         if (v < currentPrice) less++; else if (v === currentPrice) equal++;
     }
     const percentileRank = prices.length > 0 ? ((less + 0.5 * equal) / prices.length) * 100 : 50;
+
+    // Calculate trading signal
+    const currentVsAvgPct = avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+    let tradingSignal = 'Price in normal range';
+    let tradingSignalClass = 'neutral';
+    
+    if (currentVsAvgPct < -10 && rangePosition < 30) {
+        tradingSignal = 'Good buy opportunity';
+        tradingSignalClass = 'positive';
+    } else if (currentVsAvgPct > 10 && rangePosition > 70) {
+        tradingSignal = 'Good sell opportunity';
+        tradingSignalClass = 'negative';
+    } else if (currentVsAvgPct < -5) {
+        tradingSignal = 'Below average - consider buying';
+        tradingSignalClass = 'neutral';
+    } else if (currentVsAvgPct > 5) {
+        tradingSignal = 'Above average - consider selling';
+        tradingSignalClass = 'neutral';
+    }
+
+    // Determine position status
+    let positionStatus = 'Price in normal range';
+    if (rangePosition >= 90) {
+        positionStatus = 'At recent high';
+    } else if (rangePosition <= 10) {
+        positionStatus = 'At recent low';
+    } else if (rangePosition >= 70) {
+        positionStatus = 'Near recent high';
+    } else if (rangePosition <= 30) {
+        positionStatus = 'Near recent low';
+    }
     
     return {
         currentPrice,
@@ -1019,23 +1080,25 @@ function analyzePriceHistory(priceHistory) {
         avgPrice,
         weeklyChange,
         weeklyChangePercent,
-        overallChange,
-        overallChangePercent,
         trendDirection,
         trendEmoji,
+        dataPoints: prices.length,
+        priceRange: maxPrice - minPrice,
+        priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0,
         volatility,
-        stdDev,
+        volatilityCategory,
+        volatilityEmoji,
         rangePosition,
         zScore,
         percentileRank,
-        dataPoints: prices.length,
-        priceRange: maxPrice - minPrice,
-        priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+        tradingSignal,
+        tradingSignalClass,
+        positionStatus
     };
 }
 
 // Create price history HTML
-function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null) {
+function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null, chartHistoryDays = 14) {
     if (!analysis) return '';
     
     const changeColor = analysis.weeklyChangePercent > 0 ? '#27ae60' : 
@@ -1075,30 +1138,30 @@ function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = 
                     <span class="stat-label">30-day average:</span>
                     <span class="stat-value">${formatPriceExact(analysis.avgPrice)} gp</span>
                 </div>
-                ${analysis.volatility > 10 ? `
+                ${analysis.dataPoints > 5 ? `
                 <div class="stat-row">
                     <span class="stat-label">Volatility:</span>
                     <span class="stat-value" style="color: #f39c12">
-                        ${analysis.volatility.toFixed(1)}% ${analysis.volatility > 20 ? '⚠️ High' : '📊 Moderate'}
+                        ${analysis.volatilityCategory} ${analysis.volatilityEmoji}
                     </span>
                 </div>` : ''}
             </div>
             <div class="mini-chart">
-                ${createMiniChart(analysis, priceHistory)}
+                ${createMiniChart(analysis, priceHistory, chartHistoryDays)}
             </div>
         </div>
     `;
 }
 
 // Create a simple mini chart using CSS
-function createMiniChart(analysis, priceHistory) {
+function createMiniChart(analysis, priceHistory, chartHistoryDays = 14) {
     if (!analysis) return '';
     
     // Create a unique ID for this chart for event handling
     const chartId = `chart-${Math.random().toString(36).substr(2, 9)}`;
     
     // Generate visual chart and insights
-    const chartContent = createSparklineChart(analysis, priceHistory);
+    const chartContent = createSparklineChart(analysis, priceHistory, chartHistoryDays);
     
     return `
         <div class="chart-placeholder" data-chart-id="${chartId}" data-analysis='${JSON.stringify(analysis)}'>
@@ -1111,14 +1174,15 @@ function createMiniChart(analysis, priceHistory) {
 }
 
 // Create sparkline chart and unique insights
-function createSparklineChart(analysis, priceHistory) {
-    // Generate sparkline bars (last 14 data points for visual clarity)
+function createSparklineChart(analysis, priceHistory, chartHistoryDays = 14) {
+    // Generate sparkline bars (last chartHistoryDays data points for visual clarity)
     let sparklineBars = '';
     let insights = [];
+    let rangePosition = 50; // Default to middle of range
     
     if (priceHistory && priceHistory.length > 0) {
-        // Take last 14 points or all if less than 14
-        const recentData = priceHistory.slice(-14);
+        // Take last chartHistoryDays points or all if less than chartHistoryDays
+        const recentData = priceHistory.slice(-chartHistoryDays);
         const prices = recentData.map(p => p.price);
         const minPrice = Math.min(...prices);
         const maxPrice = Math.max(...prices);
@@ -1143,12 +1207,12 @@ function createSparklineChart(analysis, priceHistory) {
         
         // Calculate unique insights not shown elsewhere
         
-        // 1. Price volatility (better than "stability" - shows how much prices swing)
+        // 1. Price volatility (simple version - count days with >5% change from average)
         const avgPrice = analysis.avgPrice;
         const volatileCount = prices.filter(p => {
             if (avgPrice === 0) return false;
             const deviation = Math.abs(p - avgPrice) / avgPrice;
-            return deviation > 0.02; // More than 2% swing from average
+            return deviation > 0.05; // More than 5% swing from average
         }).length;
         const volatilityPercent = prices.length > 0 ? Math.round((volatileCount / prices.length) * 100) : 0;
         
@@ -1191,51 +1255,22 @@ function createSparklineChart(analysis, priceHistory) {
             });
         }
         
-        // 5. Best buy/sell timing insight using multi-signal scoring
-        const actualCurrentPrice = analysis.currentPrice;
-        const currentVsAvgPct = avgPrice > 0 ? ((actualCurrentPrice - avgPrice) / avgPrice) * 100 : 0;
-        const rp = analysis.rangePosition; // 0..100
-        const z = analysis.zScore; // ~-2..+2 typical
-        const pr = analysis.percentileRank; // 0..100
-
-        // Compute a "buy score" and "sell score" from multiple indicators
-        // Lower than average, near range low, negative z-score, low percentile -> buy
-        const buyScore = (
-            (currentVsAvgPct < 0 ? Math.min(20, -currentVsAvgPct) : 0) + // up to 20
-            (rp < 50 ? (50 - rp) * 0.3 : 0) +                            // up to 15 when at 0
-            (z < 0 ? Math.min(20, -z * 10) : 0) +                        // z=-2 => 20
-            (pr < 50 ? (50 - pr) * 0.3 : 0)                              // up to 15 when at 0
-        );
-        // Higher than average, near range high, positive z-score, high percentile -> sell
-        const sellScore = (
-            (currentVsAvgPct > 0 ? Math.min(20, currentVsAvgPct) : 0) +  // up to 20
-            (rp > 50 ? (rp - 50) * 0.3 : 0) +                            // up to 15 when at 100
-            (z > 0 ? Math.min(20, z * 10) : 0) +                         // z=+2 => 20
-            (pr > 50 ? (pr - 50) * 0.3 : 0)                              // up to 15 when at 100
-        );
-
-        let timingInsight = 'Price in normal range';
-        let timingClass = 'insight-neutral';
-        const margin = Math.abs(buyScore - sellScore);
-        if (buyScore > sellScore && margin >= 8) {
-            timingInsight = buyScore >= 25 ? 'Good buy opportunity' : 'Below average - consider buying';
-            timingClass = buyScore >= 25 ? 'insight-positive' : 'insight-neutral';
-        } else if (sellScore > buyScore && margin >= 8) {
-            timingInsight = sellScore >= 25 ? 'Good sell opportunity' : 'Above average - consider selling';
-            timingClass = sellScore >= 25 ? 'insight-negative' : 'insight-neutral';
+        // 5. Use pre-calculated trading signal from analysis
+        if (analysis.tradingSignal && analysis.tradingSignalClass) {
+            const signalClass = analysis.tradingSignalClass === 'positive' ? 'insight-positive' : 
+                               analysis.tradingSignalClass === 'negative' ? 'insight-negative' : 'insight-neutral';
+            insights.push({
+                label: 'Trading signal:',
+                value: analysis.tradingSignal,
+                class: signalClass
+            });
         }
-        
-        insights.push({
-            label: 'Trading signal:',
-            value: timingInsight,
-            class: timingClass
-        });
     }
     
     return `
         <div class="mini-sparkline">
             <div class="sparkline-header">
-                <span>Last 14 Days</span>
+                <span>Last ${chartHistoryDays} Days</span>
                 <span>${formatPriceExact(analysis.minPrice)} - ${formatPriceExact(analysis.maxPrice)} gp</span>
             </div>
             <div class="sparkline-chart">
@@ -1251,7 +1286,7 @@ function createSparklineChart(analysis, priceHistory) {
                 `).join('')}
                 <div class="insight-row">
                     <span class="insight-label">Position:</span>
-                    <span class="insight-neutral">${analysis.rangePosition.toFixed(0)}% of 30d range, z=${analysis.zScore.toFixed(2)}, pctl=${analysis.percentileRank.toFixed(0)}%</span>
+                    <span class="insight-neutral">${(analysis.rangePosition || rangePosition || 50).toFixed(0)}% of 30d range</span>
                 </div>
             </div>` : ''}
         </div>

@@ -161,7 +161,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 // Simple mutex for storage operations
 let storageMutex = false;
 
-// Add item to watchlist with mutex protection
+// Add item to watchlist using hybrid storage architecture
 async function addItemToWatchlist(itemData) {
   // Wait for any ongoing storage operations to complete
   while (storageMutex) {
@@ -171,9 +171,6 @@ async function addItemToWatchlist(itemData) {
   try {
     storageMutex = true; // Acquire mutex
     console.log('🔧 Background: Adding item to watchlist:', itemData);
-    const watchlist = await getWatchlist();
-    
-    console.log('📊 Current watchlist before adding:', Object.keys(watchlist));
     
     // Use the item ID from the data
     const itemId = itemData.id;
@@ -221,55 +218,60 @@ async function addItemToWatchlist(itemData) {
       console.log(`Applied default thresholds (${settings.defaultAlertType}, ${percentage}%): low=${lowThreshold}, high=${highThreshold}`);
     }
     
-    watchlist[itemId] = {
+    // Save metadata to sync storage
+    const metadata = {
       id: itemId,
       name: itemName,
-      url: fetchUrl, // Use the clean URL for fetching
-      originalUrl: itemData.url, // Keep the original URL for reference
-      currentPrice: itemData.currentPrice || null,
-      imageUrl: itemData.imageUrl || null, // Store the image URL
+      url: fetchUrl,
+      originalUrl: itemData.url,
+      imageUrl: itemData.imageUrl || `https://secure.runescape.com/m=itemdb_rs/obj_big.gif?id=${itemId}`,
       lowThreshold: lowThreshold,
       highThreshold: highThreshold,
-      lastChecked: Date.now(),
       addedAt: Date.now()
     };
     
-    await saveSyncData({ watchlist }, 'add item');
-    console.log('💾 Item saved to storage. Updated watchlist keys:', Object.keys(watchlist));
-    console.log('🎯 Newly added item data:', watchlist[itemId]);
+    await saveItemMetadata(itemId, metadata);
     
-    // Immediately verify the save worked
-    const verifyResult = await chrome.storage.sync.get(['watchlist']);
-    const verifiedWatchlist = verifyResult.watchlist || {};
-    console.log('✅ Verification - Item exists in sync storage:', !!verifiedWatchlist[itemId]);
+    // Save initial price data to local storage if available
+    if (itemData.currentPrice) {
+      const priceData = {
+        currentPrice: itemData.currentPrice,
+        lastChecked: Date.now()
+      };
+      await savePriceData(itemId, priceData);
+    }
     
     console.log('Item added to watchlist:', itemName, 'with ID:', itemId);
     
     // Immediately try to fetch current price if we don't have one
     if (!itemData.currentPrice) {
       console.log('No current price available, fetching immediately...');
-      const priceData = await fetchItemPrice(fetchUrl, itemId);
-      if (priceData && priceData.currentPrice !== null) {
-        watchlist[itemId].currentPrice = priceData.currentPrice;
-        watchlist[itemId].lastChecked = Date.now();
+      const priceResult = await fetchItemPrice(fetchUrl, itemId);
+      if (priceResult && priceResult.currentPrice !== null) {
+        const priceData = {
+          currentPrice: priceResult.currentPrice,
+          lastChecked: Date.now()
+        };
         
         // Store price history separately in local storage
-        if (priceData.priceHistory && priceData.priceHistory.length > 0) {
-          await storePriceHistory(itemId, priceData.priceHistory);
+        if (priceResult.priceHistory && priceResult.priceHistory.length > 0) {
+          await storePriceHistory(itemId, priceResult.priceHistory);
           
-          // Store only the summarized analysis with the item
-          const analysis = analyzePriceHistory(priceData.priceHistory);
+          // Store the analysis with the price data
+          const analysis = analyzePriceHistory(priceResult.priceHistory);
           if (analysis) {
-            watchlist[itemId].priceAnalysis = analysis;
-            watchlist[itemId].lastHistoryUpdate = Date.now();
+            priceData.priceAnalysis = analysis;
+            priceData.lastHistoryUpdate = Date.now();
           }
         }
         
-        await saveSyncData({ watchlist }, 'update price after add');
-        console.log('Updated price and history for newly added item:', priceData.currentPrice);
+        await savePriceData(itemId, priceData);
+        console.log('Updated price and history for newly added item:', priceResult.currentPrice);
       }
     }
     
+    // Return the merged item data
+    const watchlist = await getWatchlist();
     return watchlist[itemId];
   } catch (error) {
     console.error('Error adding item to watchlist:', error);
@@ -337,34 +339,178 @@ async function removePriceHistory(itemId) {
 }
 
 // Get watchlist from storage (now synced across devices)
-async function getWatchlist() {
+// Hybrid storage architecture:
+// - Sync storage: Item metadata only (id, name, thresholds, settings)
+// - Local storage: Price data, history, analysis results
+
+// Save item metadata to sync storage (lightweight data that syncs across devices)
+async function saveItemMetadata(itemId, metadata) {
   try {
-    // First try to get from sync storage
-    const syncResult = await chrome.storage.sync.get(['watchlist']);
+    const result = await chrome.storage.sync.get(['itemMetadata']);
+    const existingMetadata = result.itemMetadata || {};
     
-    // If we have data in sync storage, use it
-    if (syncResult.watchlist && Object.keys(syncResult.watchlist).length > 0) {
-      return syncResult.watchlist;
-    }
+    existingMetadata[itemId] = {
+      id: itemId,
+      name: metadata.name,
+      url: metadata.url,
+      originalUrl: metadata.originalUrl,
+      imageUrl: metadata.imageUrl,
+      lowThreshold: metadata.lowThreshold,
+      highThreshold: metadata.highThreshold,
+      addedAt: metadata.addedAt
+    };
     
-    // Otherwise, check if we have data in local storage (for migration)
-    const localResult = await chrome.storage.local.get(['watchlist']);
-    if (localResult.watchlist && Object.keys(localResult.watchlist).length > 0) {
-      console.log('Migrating watchlist from local to sync storage...');
-      await migrateWatchlistToSync(localResult.watchlist);
-      return localResult.watchlist;
-    }
-    
-    return {};
+    await chrome.storage.sync.set({ itemMetadata: existingMetadata });
+    console.log(`✅ Item metadata saved to sync storage: ${metadata.name}`);
+    return true;
   } catch (error) {
-    console.error('Error getting watchlist from sync storage, falling back to local:', error);
-    // Fallback to local storage if sync fails
-    const result = await chrome.storage.local.get(['watchlist']);
-    return result.watchlist || {};
+    console.error('Error saving item metadata to sync storage:', error);
+    throw error;
   }
 }
 
-// Remove item from watchlist with mutex protection
+// Get item metadata from sync storage
+async function getItemMetadata() {
+  try {
+    const result = await chrome.storage.sync.get(['itemMetadata']);
+    return result.itemMetadata || {};
+  } catch (error) {
+    console.error('Error getting item metadata from sync storage:', error);
+    return {};
+  }
+}
+
+// Save price data to local storage (heavy data that stays local)
+async function savePriceData(itemId, priceData) {
+  try {
+    const result = await chrome.storage.local.get(['priceData']);
+    const existingPriceData = result.priceData || {};
+    
+    existingPriceData[itemId] = {
+      currentPrice: priceData.currentPrice,
+      lastChecked: priceData.lastChecked,
+      previousPrice: priceData.previousPrice,
+      priceAnalysis: priceData.priceAnalysis,
+      lastHistoryUpdate: priceData.lastHistoryUpdate,
+      lastLowAlert: priceData.lastLowAlert,
+      lastHighAlert: priceData.lastHighAlert,
+      lastThresholdUpdate: priceData.lastThresholdUpdate
+    };
+    
+    await chrome.storage.local.set({ priceData: existingPriceData });
+    console.log(`✅ Price data saved to local storage: ${itemId}`);
+  } catch (error) {
+    console.error(`Error saving price data for item ${itemId}:`, error);
+    throw error;
+  }
+}
+
+// Get price data from local storage
+async function getPriceData() {
+  try {
+    const result = await chrome.storage.local.get(['priceData']);
+    return result.priceData || {};
+  } catch (error) {
+    console.error('Error getting price data from local storage:', error);
+    return {};
+  }
+}
+
+// Get complete watchlist by merging metadata from sync storage with price data from local storage
+async function getWatchlist() {
+  try {
+    // Check for legacy watchlist data and migrate if needed
+    const legacyResult = await chrome.storage.sync.get(['watchlist']);
+    if (legacyResult.watchlist && Object.keys(legacyResult.watchlist).length > 0) {
+      console.log('Migrating legacy watchlist to hybrid storage...');
+      await migrateLegacyWatchlist(legacyResult.watchlist);
+    }
+    
+    // Get item metadata from sync storage (lightweight data)
+    const metadata = await getItemMetadata();
+    
+    // Get price data from local storage (heavy data)
+    const priceData = await getPriceData();
+    
+    // Merge the two data sources
+    const watchlist = {};
+    for (const [itemId, itemMetadata] of Object.entries(metadata)) {
+      const itemPriceData = priceData[itemId] || {};
+      
+      // Combine metadata and price data
+      watchlist[itemId] = {
+        ...itemMetadata,
+        currentPrice: itemPriceData.currentPrice || null,
+        lastChecked: itemPriceData.lastChecked || itemMetadata.addedAt || Date.now(),
+        previousPrice: itemPriceData.previousPrice,
+        priceAnalysis: itemPriceData.priceAnalysis,
+        lastHistoryUpdate: itemPriceData.lastHistoryUpdate,
+        lastLowAlert: itemPriceData.lastLowAlert,
+        lastHighAlert: itemPriceData.lastHighAlert,
+        lastThresholdUpdate: itemPriceData.lastThresholdUpdate
+      };
+    }
+    
+    console.log(`📊 Loaded watchlist: ${Object.keys(metadata).length} items from sync, ${Object.keys(priceData).length} price records from local`);
+    return watchlist;
+  } catch (error) {
+    console.error('Error getting watchlist:', error);
+    return {};
+  }
+}
+
+// Migrate legacy watchlist to hybrid storage architecture
+async function migrateLegacyWatchlist(legacyWatchlist) {
+  try {
+    console.log('🔄 Starting migration to hybrid storage architecture...');
+    
+    const metadata = {};
+    const priceData = {};
+    
+    for (const [itemId, item] of Object.entries(legacyWatchlist)) {
+      // Extract metadata for sync storage
+      metadata[itemId] = {
+        id: item.id,
+        name: item.name,
+        url: item.url,
+        originalUrl: item.originalUrl,
+        imageUrl: item.imageUrl,
+        lowThreshold: item.lowThreshold,
+        highThreshold: item.highThreshold,
+        addedAt: item.addedAt
+      };
+      
+      // Extract price data for local storage
+      if (item.currentPrice !== undefined || item.lastChecked || item.priceAnalysis) {
+        priceData[itemId] = {
+          currentPrice: item.currentPrice,
+          lastChecked: item.lastChecked,
+          previousPrice: item.previousPrice,
+          priceAnalysis: item.priceAnalysis,
+          lastHistoryUpdate: item.lastHistoryUpdate,
+          lastLowAlert: item.lastLowAlert,
+          lastHighAlert: item.lastHighAlert,
+          lastThresholdUpdate: item.lastThresholdUpdate
+        };
+      }
+    }
+    
+    // Save to new hybrid storage
+    await chrome.storage.sync.set({ itemMetadata: metadata });
+    await chrome.storage.local.set({ priceData: priceData });
+    
+    // Clean up legacy storage
+    await chrome.storage.sync.remove(['watchlist']);
+    
+    console.log('✅ Migration completed - metadata in sync, price data in local');
+  } catch (error) {
+    console.error('Error migrating legacy watchlist:', error);
+  }
+}
+
+
+
+// Remove item from watchlist using hybrid storage architecture
 async function removeItemFromWatchlist(itemId) {
   // Wait for any ongoing storage operations to complete
   while (storageMutex) {
@@ -373,16 +519,27 @@ async function removeItemFromWatchlist(itemId) {
   
   try {
     storageMutex = true; // Acquire mutex
-    const watchlist = await getWatchlist();
     
-    if (watchlist[itemId]) {
-      delete watchlist[itemId];
-      await saveSyncData({ watchlist }, 'remove item');
-      console.log('Item removed from watchlist:', itemId);
-      
-      // Also clean up price history from local storage
-      await removePriceHistory(itemId);
+    // Remove from sync storage (metadata)
+    const metadata = await getItemMetadata();
+    if (metadata[itemId]) {
+      delete metadata[itemId];
+      await chrome.storage.sync.set({ itemMetadata: metadata });
+      console.log('Item metadata removed from sync storage:', itemId);
     }
+    
+    // Remove from local storage (price data)
+    const priceData = await getPriceData();
+    if (priceData[itemId]) {
+      delete priceData[itemId];
+      await chrome.storage.local.set({ priceData: priceData });
+      console.log('Item price data removed from local storage:', itemId);
+    }
+    
+    // Also clean up price history from local storage
+    await removePriceHistory(itemId);
+    
+    console.log('Item completely removed from watchlist:', itemId);
   } catch (error) {
     console.error('Error removing item from watchlist:', error);
     throw error;
@@ -391,7 +548,7 @@ async function removeItemFromWatchlist(itemId) {
   }
 }
 
-// Update item thresholds with mutex protection and retry on conflict
+// Update item thresholds in sync storage (metadata only)
 async function updateItemThresholds(itemId, lowPrice, highPrice) {
   // Wait for any ongoing storage operations to complete
   while (storageMutex) {
@@ -404,30 +561,26 @@ async function updateItemThresholds(itemId, lowPrice, highPrice) {
   while (retries < maxRetries) {
     try {
       storageMutex = true; // Acquire mutex
-      const watchlist = await getWatchlist();
       
-      if (watchlist[itemId]) {
-        watchlist[itemId].lowThreshold = lowPrice;
-        watchlist[itemId].highThreshold = highPrice;
+      // Update metadata in sync storage
+      const metadata = await getItemMetadata();
+      if (metadata[itemId]) {
+        metadata[itemId].lowThreshold = lowPrice;
+        metadata[itemId].highThreshold = highPrice;
         
-        // Use a unique timestamp to detect conflicts
-        const updateTimestamp = Date.now();
-        watchlist[itemId].lastThresholdUpdate = updateTimestamp;
+        await chrome.storage.sync.set({ itemMetadata: metadata });
+        console.log('Thresholds updated successfully for item:', itemId);
         
-        await saveSyncData({ watchlist }, 'update thresholds');
-        
-        // Verify the update wasn't overwritten by checking the timestamp
-        await new Promise(resolve => setTimeout(resolve, 50)); // Small delay
-        const verifyWatchlist = await getWatchlist();
-        
-        if (verifyWatchlist[itemId] && verifyWatchlist[itemId].lastThresholdUpdate === updateTimestamp) {
-          console.log('Thresholds updated successfully for item:', itemId);
-          return; // Success
-        } else {
-          throw new Error('Update was overwritten by concurrent operation');
+        // Also update the timestamp in price data for tracking
+        const priceData = await getPriceData();
+        if (priceData[itemId]) {
+          priceData[itemId].lastThresholdUpdate = Date.now();
+          await chrome.storage.local.set({ priceData: priceData });
         }
+        
+        return; // Success
       } else {
-        throw new Error('Item not found in watchlist');
+        throw new Error('Item not found in watchlist metadata');
       }
     } catch (error) {
       retries++;
@@ -449,36 +602,7 @@ function extractItemIdFromUrl(url) {
   return match ? match[1] : null;
 }
 
-// Storage wrapper with enhanced logging and fallback handling
-async function saveSyncData(data, operationType = 'sync operation') {
-  try {
-    await chrome.storage.sync.set(data);
-    return true;
-  } catch (error) {
-    // Check if it's a quota exceeded error
-    const isQuotaError = error.message && error.message.includes('quota');
-    const errorType = isQuotaError ? 'QUOTA_EXCEEDED' : 'SYNC_FAILED';
-    
-    if (isQuotaError) {
-      console.warn(`⚠️ Sync storage quota exceeded during ${operationType}. Watchlist too large (${Object.keys(data.watchlist || {}).length} items). Falling back to local storage only - data will not sync across devices.`);
-      
-      // Fallback to local storage
-      try {
-        await chrome.storage.local.set(data);
-        console.warn(`📱 Data saved to local storage as fallback. To restore sync functionality, reduce watchlist to 80-90 items or fewer.`);
-        return false; // Indicate sync failed but local save succeeded
-      } catch (localError) {
-        console.error(`❌ Both sync and local storage failed during ${operationType}:`, localError);
-        throw localError;
-      }
-    } else {
-      console.warn(`⚠️ Sync storage failed during ${operationType}: ${error.message}. Data will not sync across devices.`);
-      throw error;
-    }
-  }
-}
-
-// Check prices and send alerts with improved concurrency handling
+// Check prices and send alerts using hybrid storage architecture
 async function checkPricesAndAlert() {
   console.groupCollapsed('🔄 Price Check Cycle');
   try {
@@ -498,7 +622,7 @@ async function checkPricesAndAlert() {
     
     let alertCount = 0;
     let itemsToRemove = []; // Track items to auto-remove
-    let priceUpdates = {}; // Track price updates to apply
+    let priceUpdates = {}; // Track price updates to apply to local storage
     
     // Check for time-based auto-removal first
     if (settings.autoRemoveDays > 0) {
@@ -721,7 +845,7 @@ async function checkPricesAndAlert() {
   console.groupEnd(); // End main price check cycle group
 }
 
-// Apply price updates atomically to avoid race conditions
+// Apply price updates atomically using hybrid storage architecture
 async function applyPriceUpdatesAtomically(priceUpdates, itemsToRemove) {
   // Wait for any ongoing storage operations to complete
   while (storageMutex) {
@@ -731,55 +855,64 @@ async function applyPriceUpdatesAtomically(priceUpdates, itemsToRemove) {
   try {
     storageMutex = true; // Acquire mutex
     
-    // Get the latest watchlist state
-    const currentWatchlist = await getWatchlist();
+    console.log('📦 Applying price updates to hybrid storage:', Object.keys(priceUpdates).length, 'items');
     
-    // Apply price updates
-    console.log('📦 Applying price updates:', Object.keys(priceUpdates).length, 'items');
+    // Get current data from both storage locations
+    const metadata = await getItemMetadata();
+    const priceData = await getPriceData();
+    
+    // Apply updates to appropriate storage
     for (const [itemId, updates] of Object.entries(priceUpdates)) {
-      if (currentWatchlist[itemId]) {
-        // Log if we're adding an image URL
-        if (updates.imageUrl) {
-          console.log(`🖼️ APPLYING IMAGE URL for ${currentWatchlist[itemId].name}: ${updates.imageUrl}`);
-        }
-        
-        // Apply updates while preserving any manual threshold changes
-        Object.assign(currentWatchlist[itemId], updates);
-        
-        // Verify the image URL was applied
-        if (updates.imageUrl && currentWatchlist[itemId].imageUrl === updates.imageUrl) {
-          console.log(`✅ Image URL successfully applied to ${currentWatchlist[itemId].name}`);
-        }
-      } else {
-        console.log(`⚠️ Item ${itemId} not found in current watchlist for updates`);
+      // Update metadata in sync storage if needed (like imageUrl)
+      if (metadata[itemId] && updates.imageUrl) {
+        console.log(`🖼️ Updating image URL in sync storage for ${metadata[itemId].name}: ${updates.imageUrl}`);
+        metadata[itemId].imageUrl = updates.imageUrl;
       }
-    }
-    
-    // Remove items marked for removal
-    for (const itemId of itemsToRemove) {
-      if (currentWatchlist[itemId]) {
-        delete currentWatchlist[itemId];
-        console.log(`Removed item from watchlist: ${itemId}`);
-        
-        // Also clean up price history from local storage
-        await removePriceHistory(itemId);
-      }
-    }
-    
-    // Save the updated watchlist
-    console.log('💾 About to save updated watchlist to storage...');
-    const syncSuccess = await saveSyncData({ watchlist: currentWatchlist }, 'price updates');
-    if (syncSuccess) {
-      console.log('✅ Price updates and removals applied successfully to storage');
       
-      // Log final state of items with image URLs for verification
-      console.log('📋 FINAL STORAGE STATE - Items with image URLs:');
-      Object.entries(currentWatchlist).forEach(([itemId, item]) => {
-        console.log(`  ${item.name}: ${item.imageUrl ? '✅ HAS IMAGE' : '❌ NO IMAGE'} - ${item.imageUrl || 'MISSING'}`);
-      });
-    } else {
-      console.warn('⚠️ Price updates applied but sync failed - using local storage fallback');
+      // Update price data in local storage
+      if (!priceData[itemId]) {
+        priceData[itemId] = {};
+      }
+      
+      // Apply all price-related updates to local storage
+      const priceUpdate = { ...updates };
+      delete priceUpdate.imageUrl; // This goes to sync storage, not local
+      
+      Object.assign(priceData[itemId], priceUpdate);
+      
+      if (updates.imageUrl) {
+        console.log(`✅ Image URL will be saved to sync storage for ${metadata[itemId]?.name}`);
+      }
+      console.log(`📊 Price data updated for ${metadata[itemId]?.name || itemId}`);
     }
+    
+    // Remove items marked for removal from both storage locations
+    for (const itemId of itemsToRemove) {
+      if (metadata[itemId]) {
+        console.log(`Removing item from sync storage: ${metadata[itemId].name}`);
+        delete metadata[itemId];
+      }
+      
+      if (priceData[itemId]) {
+        console.log(`Removing price data from local storage: ${itemId}`);
+        delete priceData[itemId];
+      }
+      
+      // Also clean up price history from local storage
+      await removePriceHistory(itemId);
+    }
+    
+    // Save updates to both storage locations
+    console.log('💾 Saving updates to hybrid storage...');
+    await chrome.storage.sync.set({ itemMetadata: metadata });
+    await chrome.storage.local.set({ priceData: priceData });
+    
+    console.log('✅ Price updates and removals applied successfully to hybrid storage');
+    
+    // Log final state
+    console.log('📋 FINAL HYBRID STORAGE STATE:');
+    console.log(`  Sync storage: ${Object.keys(metadata).length} item metadata records`);
+    console.log(`  Local storage: ${Object.keys(priceData).length} price data records`);
     
   } catch (error) {
     console.error('Error applying price updates atomically:', error);
@@ -1118,6 +1251,17 @@ function analyzePriceHistory(priceHistory) {
   const stdDev = Math.sqrt(variance);
   const volatility = avgPrice > 0 ? (stdDev / avgPrice * 100) : 0;
 
+  // Categorize volatility (adjusted for RuneScape market behavior)
+  let volatilityCategory = 'Low';
+  let volatilityEmoji = '📱';
+  if (volatility > 8) {
+    volatilityCategory = 'High';
+    volatilityEmoji = '🔥';
+  } else if (volatility > 3) {
+    volatilityCategory = 'Moderate';
+    volatilityEmoji = '📊';
+  }
+
   // Advanced positioning metrics
   const range = maxPrice - minPrice;
   const rangePosition = range > 0 ? ((currentPrice - minPrice) / range * 100) : 50; // 0=at min, 100=at max
@@ -1128,6 +1272,37 @@ function analyzePriceHistory(priceHistory) {
     if (v < currentPrice) less++; else if (v === currentPrice) equal++;
   }
   const percentileRank = prices.length > 0 ? ((less + 0.5 * equal) / prices.length) * 100 : 50;
+
+  // Calculate trading signal
+  const currentVsAvgPct = avgPrice > 0 ? ((currentPrice - avgPrice) / avgPrice) * 100 : 0;
+  let tradingSignal = 'Price in normal range';
+  let tradingSignalClass = 'neutral';
+  
+  if (currentVsAvgPct < -10 && rangePosition < 30) {
+    tradingSignal = 'Good buy opportunity';
+    tradingSignalClass = 'positive';
+  } else if (currentVsAvgPct > 10 && rangePosition > 70) {
+    tradingSignal = 'Good sell opportunity';
+    tradingSignalClass = 'negative';
+  } else if (currentVsAvgPct < -5) {
+    tradingSignal = 'Below average - consider buying';
+    tradingSignalClass = 'neutral';
+  } else if (currentVsAvgPct > 5) {
+    tradingSignal = 'Above average - consider selling';
+    tradingSignalClass = 'neutral';
+  }
+
+  // Determine position status
+  let positionStatus = 'Price in normal range';
+  if (rangePosition >= 90) {
+    positionStatus = 'At recent high';
+  } else if (rangePosition <= 10) {
+    positionStatus = 'At recent low';
+  } else if (rangePosition >= 70) {
+    positionStatus = 'Near recent high';
+  } else if (rangePosition <= 30) {
+    positionStatus = 'Near recent low';
+  }
   
   return {
     currentPrice,
@@ -1136,18 +1311,20 @@ function analyzePriceHistory(priceHistory) {
     avgPrice,
     weeklyChange,
     weeklyChangePercent,
-    overallChange,
-    overallChangePercent,
     trendDirection,
     trendEmoji,
+    dataPoints: prices.length,
+    priceRange: maxPrice - minPrice,
+    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0,
     volatility,
-    stdDev,
+    volatilityCategory,
+    volatilityEmoji,
     rangePosition,
     zScore,
     percentileRank,
-    dataPoints: prices.length,
-    priceRange: maxPrice - minPrice,
-    priceRangePercent: minPrice > 0 ? ((maxPrice - minPrice) / minPrice * 100) : 0
+    tradingSignal,
+    tradingSignalClass,
+    positionStatus
   };
 }
 
@@ -1163,6 +1340,7 @@ const defaultSettings = {
   priceFormat: 'gp', // Changed to 'gp' for detailed format
   sortOrder: 'date-added', // Changed to date-added
   showHistory: true,
+  chartHistoryDays: 14, // Default to 14 days for chart history
   compactView: false,
   defaultAlertType: 'both',
   alertThreshold: 10,
