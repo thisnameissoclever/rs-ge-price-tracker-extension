@@ -914,18 +914,8 @@ async function updateThresholds(itemId) {
         
         // Process low threshold
         if (lowValue) {
-            if (lowValue.startsWith('-')) {
-                // Handle negative numbers - subtract from current price
-                const negativeAmount = Math.abs(parseFloat(lowValue));
-                if (!isNaN(negativeAmount) && currentPrice) {
-                    lowPrice = Math.round(Math.max(0, currentPrice - negativeAmount));
-                    lowInput.value = lowPrice.toString();
-                } else {
-                    lowInput.value = ''; // Clear invalid input
-                    lowPrice = null;
-                }
-            } else if (lowValue.startsWith('+')) {
-                // Handle + prefix - add to current price
+            // Handle '+' prefix - add to current price
+            if (lowValue.startsWith('+')) {
                 const additionalAmount = parseFloat(lowValue.substring(1));
                 if (!isNaN(additionalAmount) && currentPrice) {
                     lowPrice = Math.round(currentPrice + additionalAmount);
@@ -934,7 +924,20 @@ async function updateThresholds(itemId) {
                     lowInput.value = ''; // Clear invalid input
                     lowPrice = null;
                 }
-            } else {
+            }
+            // Handle '-' prefix - subtract from current price
+            else if (lowValue.startsWith('-')) {
+                const negativeAmount = Math.abs(parseFloat(lowValue));
+                if (!isNaN(negativeAmount) && currentPrice) {
+                    lowPrice = Math.round(Math.max(0, currentPrice - negativeAmount));
+                    lowInput.value = lowPrice.toString();
+                } else {
+                    lowInput.value = ''; // Clear invalid input
+                    lowPrice = null;
+                }
+            }
+            // Handle regular numbers
+            else {
                 const parsedLow = parseFloat(lowValue);
                 if (isNaN(parsedLow)) {
                     lowInput.value = ''; // Clear invalid input
@@ -954,8 +957,8 @@ async function updateThresholds(itemId) {
         
         // Process high threshold
         if (highValue) {
+            // Handle '+' prefix - add to current price
             if (highValue.startsWith('+')) {
-                // Handle + prefix - add to current price
                 const additionalAmount = parseFloat(highValue.substring(1));
                 if (!isNaN(additionalAmount) && currentPrice) {
                     highPrice = Math.round(currentPrice + additionalAmount);
@@ -964,7 +967,9 @@ async function updateThresholds(itemId) {
                     highInput.value = ''; // Clear invalid input
                     highPrice = null;
                 }
-            } else {
+            }
+            // Handle regular numbers
+            else {
                 const parsedHigh = parseFloat(highValue);
                 if (isNaN(parsedHigh)) {
                     highInput.value = ''; // Clear invalid input
