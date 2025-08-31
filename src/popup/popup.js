@@ -428,6 +428,41 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
                            (b.highThreshold && b.currentPrice >= b.highThreshold)));
         
         switch (sortOrder) {
+            case 'name':
+                return a.name.localeCompare(b.name);
+                
+            case 'price':
+                const aPrice = a.currentPrice || 0;
+                const bPrice = b.currentPrice || 0;
+                return bPrice - aPrice; // Highest price first
+                
+            case 'change':
+                // Sort by absolute daily price change - items without history at top
+                const aAnalysis = a.priceAnalysis;
+                const bAnalysis = b.priceAnalysis;
+                
+                // Items without price analysis (no history) go to top
+                if (!aAnalysis && !bAnalysis) return 0;
+                if (!aAnalysis) return -1; // a goes to top
+                if (!bAnalysis) return 1;  // b goes to top
+                
+                // Get absolute daily change values
+                const aDailyChange = Math.abs(aAnalysis.dailyChange || 0);
+                const bDailyChange = Math.abs(bAnalysis.dailyChange || 0);
+                
+                return bDailyChange - aDailyChange; // Largest change first
+                
+            case 'alert':
+                if (aHasAlert && !bHasAlert) return -1;
+                if (!aHasAlert && bHasAlert) return 1;
+                return a.name.localeCompare(b.name);
+                
+            case 'date-added':
+                const aDate = a.addedAt || 0;
+                const bDate = b.addedAt || 0;
+                return bDate - aDate; // Newest first
+                
+            // Legacy cases for backwards compatibility
             case 'alerts-first':
                 if (aHasAlert && !bHasAlert) return -1;
                 if (!aHasAlert && bHasAlert) return 1;
@@ -440,19 +475,14 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
                 return b.name.localeCompare(a.name);
                 
             case 'price-high':
-                const aPrice = a.currentPrice || 0;
-                const bPrice = b.currentPrice || 0;
-                return bPrice - aPrice;
+                const aPriceHigh = a.currentPrice || 0;
+                const bPriceHigh = b.currentPrice || 0;
+                return bPriceHigh - aPriceHigh;
                 
             case 'price-low':
                 const aPriceLow = a.currentPrice || Infinity;
                 const bPriceLow = b.currentPrice || Infinity;
                 return aPriceLow - bPriceLow;
-                
-            case 'date-added':
-                const aDate = a.addedAt || 0;
-                const bDate = b.addedAt || 0;
-                return bDate - aDate; // Newest first
                 
             default:
                 return a.name.localeCompare(b.name);
