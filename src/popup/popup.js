@@ -667,7 +667,6 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
                                    value="${item.highThreshold || ''}" min="0"
                                    class="compact-input ${alertStatus !== 'normal' ? 'threshold-input-alert' : ''}" 
                                    title="High alert threshold">
-
                             <button id="remove-${item.id}" class="compact-remove-btn" title="Remove from watchlist">×</button>
                         </div>
                     </div>
