@@ -1470,7 +1470,7 @@ const defaultSettings = {
   priceFormat: 'gp', // Changed to 'gp' for detailed format
   sortOrder: 'date-added', // Changed to date-added
   showHistory: true,
-  chartHistoryDays: 14, // Default to 14 days for chart history
+  chartHistoryDays: 30, // Default to 30 days for chart history
   compactView: false,
   defaultAlertType: 'both',
   alertThreshold: 10,
