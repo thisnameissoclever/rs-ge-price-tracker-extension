@@ -29,11 +29,11 @@ This is a Chrome extension (manifest v3) that tracks RuneScape Grand Exchange it
    ./node_modules/.bin/eslint src/*.js src/**/*.js
    ```
 
-4. **Test extension loading in Chrome** (takes ~0.5s):
+4. **Test extension loading in Chrome** (takes ~7s):
    ```bash
    timeout 15s google-chrome --no-sandbox --disable-gpu --headless --dump-dom --load-extension=. about:blank > /tmp/extension_test.html
    ```
-   Extension loads successfully if `/tmp/extension_test.html` contains `<html>` tags.
+   Extension loads successfully if `/tmp/extension_test.html` contains `<html><head></head><body></body></html>` or similar HTML structure.
 
 ### Testing the Extension Manually
 **CRITICAL**: After making any code changes, ALWAYS test the complete extension functionality manually:
@@ -84,10 +84,18 @@ This is a Chrome extension (manifest v3) that tracks RuneScape Grand Exchange it
 ### Validation Commands (run frequently)
 ```bash
 # Complete validation suite - NEVER CANCEL - takes ~5 minutes total:
-node -c src/*.js src/**/*.js                    # ~0.8s total
-npm install --no-package-lock --no-save eslint  # ~2s (if not installed)
-./node_modules/.bin/eslint src/*.js src/**/*.js # ~0.5s
-timeout 15s google-chrome --no-sandbox --disable-gpu --headless --dump-dom --load-extension=. about:blank  # ~0.5s
+node -c src/*.js src/**/*.js                    # ~0.02s total (all files)
+npm install --no-package-lock --no-save eslint  # ~2.3s (if not installed)
+./node_modules/.bin/eslint src/*.js src/**/*.js # ~0.4s
+timeout 15s google-chrome --no-sandbox --disable-gpu --headless --dump-dom --load-extension=. about:blank  # ~7s
+```
+
+### Comprehensive Test Suite (optional but recommended)
+```bash
+# Run comprehensive extension tests - NEVER CANCEL - takes <1 minute total:
+node test_comprehensive.js                      # ~0.25s - Complete storage/analysis validation
+./test_hybrid_storage.js                        # ~0.04s - Storage architecture tests  
+./test_realistic_usage.js                       # ~0.05s - Realistic usage scenarios
 ```
 
 ### Development Workflow
@@ -135,7 +143,8 @@ rs-ge-price-tracker-extension/
 ### No Build Process Required
 - This extension uses pure JavaScript/HTML/CSS
 - Files are loaded directly by Chrome - no webpack, babel, or compilation needed
-- Do NOT try to run npm build, make, or similar build commands - they don't exist
+- Do NOT try to run npm build, make, or similar build commands - they don't exist and will fail
+- **Commands that will fail (as expected)**: `npm run build`, `make`, `yarn build`, `webpack`, etc.
 
 ### Storage and Permissions
 - Uses `chrome.storage.sync` for watchlist and settings (syncs across devices)
@@ -149,10 +158,11 @@ rs-ge-price-tracker-extension/
 - Manual testing is REQUIRED for complete validation
 
 ### Timing Expectations
-- **JavaScript validation**: <1 second total
-- **ESLint installation**: ~2 seconds  
-- **ESLint linting**: ~0.5 seconds
-- **Chrome extension loading**: ~0.5 seconds
+- **JavaScript validation**: ~0.02 seconds per file (very fast)
+- **ESLint installation**: ~2.3 seconds  
+- **ESLint linting**: ~0.4 seconds
+- **Chrome extension loading**: ~7 seconds (headless test)
+- **Comprehensive test suite**: <1 minute total (all test scripts)
 - **Manual testing**: 5-15 minutes depending on scenarios
 - **Background price updates**: 5 minutes (Chrome alarm interval)
 
