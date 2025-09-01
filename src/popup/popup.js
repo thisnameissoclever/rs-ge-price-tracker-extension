@@ -424,10 +424,10 @@ async function displayWatchlist(watchlist) {
     // Load settings to check compact view, price format, and sort order
     try {
         const settings = await getSettings();
-        console.log('⚙️ Settings:', { showHistory: settings.showHistory, compactView: settings.compactView });
+        console.log('⚙️ Settings:', { showHistory: settings.showHistory, compactView: settings.compactView, sortOrder: settings.sortOrder });
         
-        const result = await chrome.storage.sync.get('sortOrder');
-        const sortOrder = result.sortOrder || settings.sortOrder;
+        // Use sortOrder from settings - no need to check a separate sortOrder key
+        const sortOrder = settings.sortOrder;
         
         await renderWatchlistItems(items, container, settings.compactView, settings.priceFormat, sortOrder);
     } catch (error) {
@@ -1569,9 +1569,6 @@ async function switchToManualSorting() {
         settings.sortOrder = 'manual';
         await chrome.storage.sync.set({ settings });
         
-        // Also update the direct sortOrder storage for compatibility
-        await chrome.storage.sync.set({ sortOrder: 'manual' });
-        
         console.log('Switched to manual sorting');
     } catch (error) {
         console.error('Error switching to manual sorting:', error);
@@ -1615,8 +1612,8 @@ function initializeDragAndDrop(container, isCompactView) {
             await saveManualSortOrder(newOrder);
             
             // Switch to manual sorting if not already
-            const result = await chrome.storage.sync.get('sortOrder');
-            const currentSortOrder = result.sortOrder || 'date-added';
+            const settings = await getSettings();
+            const currentSortOrder = settings.sortOrder || 'date-added';
             
             if (currentSortOrder !== 'manual') {
                 await switchToManualSorting();
