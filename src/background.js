@@ -243,6 +243,29 @@ async function addItemToWatchlist(itemData) {
     
     console.log('Item added to watchlist:', itemName, 'with ID:', itemId);
     
+    // Handle manual sort order - add new items to the beginning
+    try {
+      const settingsResult = await chrome.storage.sync.get('settings');
+      const settings = settingsResult.settings || {};
+      const sortOrderResult = await chrome.storage.sync.get('sortOrder');
+      const currentSortOrder = sortOrderResult.sortOrder || settings.sortOrder || 'date-added';
+      
+      if (currentSortOrder === 'manual') {
+        const manualOrderResult = await chrome.storage.sync.get('manualSortOrder');
+        const manualOrder = manualOrderResult.manualSortOrder || [];
+        
+        // Add new item to the beginning (as specified in requirements)
+        if (!manualOrder.includes(itemId)) {
+          manualOrder.unshift(itemId);
+          await chrome.storage.sync.set({ manualSortOrder: manualOrder });
+          console.log('Added item to beginning of manual sort order:', itemId);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating manual sort order for new item:', error);
+      // Don't fail the whole operation if manual sort update fails
+    }
+    
     // Immediately try to fetch current price if we don't have one
     if (!itemData.currentPrice) {
       console.log('No current price available, fetching immediately...');
@@ -538,6 +561,22 @@ async function removeItemFromWatchlist(itemId) {
     
     // Also clean up price history from local storage
     await removePriceHistory(itemId);
+    
+    // Clean up manual sort order
+    try {
+      const manualOrderResult = await chrome.storage.sync.get('manualSortOrder');
+      let manualOrder = manualOrderResult.manualSortOrder || [];
+      
+      const index = manualOrder.indexOf(itemId);
+      if (index > -1) {
+        manualOrder.splice(index, 1);
+        await chrome.storage.sync.set({ manualSortOrder: manualOrder });
+        console.log('Removed item from manual sort order:', itemId);
+      }
+    } catch (error) {
+      console.error('Error cleaning up manual sort order:', error);
+      // Don't fail the whole operation if manual sort cleanup fails
+    }
     
     console.log('Item completely removed from watchlist:', itemId);
   } catch (error) {

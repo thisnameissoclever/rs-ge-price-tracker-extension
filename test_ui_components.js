@@ -134,6 +134,7 @@ global.fetch = async () => ({ ok: false });
 // Load source files
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 // Suppress console.log during loading
 const originalLog = console.log;
@@ -142,9 +143,9 @@ console.log = () => {};
 const backgroundScript = fs.readFileSync(path.join(__dirname, 'src', 'background.js'), 'utf8');
 const popupScript = fs.readFileSync(path.join(__dirname, 'src', 'popup', 'popup.js'), 'utf8');
 
-// Extract functions by evaluating the scripts
-eval(backgroundScript);
-eval(popupScript);
+// Extract functions by safely executing the scripts
+vm.runInThisContext(backgroundScript);
+vm.runInThisContext(popupScript);
 
 // Restore console.log
 console.log = originalLog;

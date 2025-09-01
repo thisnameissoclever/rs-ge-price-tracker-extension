@@ -1035,6 +1035,82 @@
         .insight-neutral {
             color: #95a5a6;
         }
+        
+        /* Drag and Drop Styles */
+        .drag-handle {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            color: #bdc3c7;
+            cursor: grab;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 2;
+            user-select: none;
+            padding: 4px 6px;
+            border-radius: 4px;
+            background: transparent;
+            transition: all 0.2s ease;
+            line-height: 1;
+            min-width: 16px;
+            text-align: center;
+        }
+        
+        .drag-handle:hover {
+            color: #f4d03f;
+            background: transparent;
+            cursor: grab;
+            transform: scale(1.1);
+        }
+        
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+        
+        .compact-item {
+            padding-left: 8px; /* Make room for the relative positioned drag handle */
+        }
+        
+        .compact-item .drag-handle {
+            position: relative;
+            top: auto;
+            left: auto;
+            margin-right: 8px;
+            margin-left: 0;
+            font-size: 12px;
+            flex-shrink: 0;
+            min-width: 20px;
+            padding: 2px 4px;
+        }
+        
+        /* Adjust item positioning for drag handle */
+        .item:not(.compact-item) {
+            padding-left: 35px; /* Make room for absolute positioned drag handle */
+        }
+        
+        /* Sortable.js styling */
+        .sortable-ghost {
+            opacity: 0.4;
+        }
+        
+        .sortable-chosen {
+            transform: rotate(3deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+            z-index: 1000 !important;
+        }
+        
+        .sortable-drag {
+            transform: rotate(3deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+            z-index: 1000 !important;
+        }
+        
+        .dragging {
+            transform: rotate(3deg) !important;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+            opacity: 0.9;
+            z-index: 1000 !important;
+        }
     </style>
 </head>
 <body>
@@ -1078,6 +1154,7 @@
         </div>
     </div>
     
+    <script src="../vendor/Sortable.min.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

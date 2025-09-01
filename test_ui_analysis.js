@@ -118,6 +118,7 @@ global.chrome = {
 // Load source files
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 // Suppress console.log during loading
 const originalLog = console.log;
@@ -127,11 +128,12 @@ const backgroundScript = fs.readFileSync(path.join(__dirname, 'src', 'background
 const popupScript = fs.readFileSync(path.join(__dirname, 'src', 'popup', 'popup.js'), 'utf8');
 
 // Extract functions
-eval(backgroundScript);
+vm.runInThisContext(backgroundScript);
 
 // Load popup functions in separate context
 const popup = {};
-eval(`
+global.popup = popup;
+vm.runInThisContext(`
   ${popupScript}
   popup.createPriceHistoryHTML = typeof createPriceHistoryHTML !== 'undefined' ? createPriceHistoryHTML : null;
   popup.createSparklineChart = typeof createSparklineChart !== 'undefined' ? createSparklineChart : null;
