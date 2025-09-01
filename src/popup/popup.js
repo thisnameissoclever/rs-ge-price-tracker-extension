@@ -12,7 +12,7 @@ const DEFAULT_SETTINGS = {
     priceFormat: 'gp',
     sortOrder: 'date-added',
     showHistory: true,
-    chartHistoryDays: 14, // Default to 14 days for chart history
+    chartHistoryDays: 30, // Default to 30 days for chart history
     compactView: false,
     defaultAlertType: 'both',
     alertThreshold: 10,
@@ -1309,7 +1309,7 @@ function analyzePriceHistory(priceHistory) {
 }
 
 // Create price history HTML
-function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null, chartHistoryDays = 14) {
+function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = null, chartHistoryDays = 30) {
     if (!analysis) return '';
     
     const changeColor = analysis.weeklyChangePercent > 0 ? '#27ae60' : 
@@ -1365,7 +1365,7 @@ function createPriceHistoryHTML(analysis, isCompactView = false, priceHistory = 
 }
 
 // Create a simple mini chart using CSS
-function createMiniChart(analysis, priceHistory, chartHistoryDays = 14) {
+function createMiniChart(analysis, priceHistory, chartHistoryDays = 30) {
     if (!analysis) return '';
     
     // Create a unique ID for this chart for event handling
@@ -1385,7 +1385,7 @@ function createMiniChart(analysis, priceHistory, chartHistoryDays = 14) {
 }
 
 // Create sparkline chart and unique insights
-function createSparklineChart(analysis, priceHistory, chartHistoryDays = 14) {
+function createSparklineChart(analysis, priceHistory, chartHistoryDays = 30) {
     // Generate sparkline bars (last chartHistoryDays data points for visual clarity)
     let sparklineBars = '';
     let insights = [];
@@ -1497,7 +1497,7 @@ function createSparklineChart(analysis, priceHistory, chartHistoryDays = 14) {
                 `).join('')}
                 <div class="insight-row">
                     <span class="insight-label">Position:</span>
-                    <span class="insight-neutral">${(analysis.rangePosition || rangePosition || 50).toFixed(0)}% of 30d range</span>
+                    <span class="insight-neutral">${(analysis.rangePosition || rangePosition || 50).toFixed(0)}% of ${chartHistoryDays}d range</span>
                 </div>
             </div>` : ''}
         </div>
