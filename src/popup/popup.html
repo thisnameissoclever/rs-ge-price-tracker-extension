@@ -1035,6 +1035,64 @@
         .insight-neutral {
             color: #95a5a6;
         }
+        
+        /* Drag and Drop Styles */
+        .drag-handle {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            color: #95a5a6;
+            cursor: grab;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 2;
+            user-select: none;
+            padding: 2px 4px;
+            border-radius: 3px;
+            background: rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        
+        .drag-handle:hover {
+            color: #f4d03f;
+            background: rgba(244, 208, 63, 0.2);
+            cursor: grab;
+        }
+        
+        .drag-handle:active {
+            cursor: grabbing;
+        }
+        
+        .compact-item .drag-handle {
+            position: relative;
+            top: auto;
+            left: auto;
+            margin-right: 8px;
+            margin-left: 4px;
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+        
+        /* Sortable.js styling */
+        .sortable-ghost {
+            opacity: 0.4;
+        }
+        
+        .sortable-chosen {
+            transform: rotate(5deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+        }
+        
+        .sortable-drag {
+            transform: rotate(5deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+        }
+        
+        .dragging {
+            transform: rotate(5deg);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+            opacity: 0.9;
+        }
     </style>
 </head>
 <body>
@@ -1078,6 +1136,7 @@
         </div>
     </div>
     
+    <script src="../vendor/Sortable.min.js"></script>
     <script src="popup.js"></script>
 </body>
 </html>

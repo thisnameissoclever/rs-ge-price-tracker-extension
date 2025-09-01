@@ -429,15 +429,15 @@ async function displayWatchlist(watchlist) {
         const result = await chrome.storage.sync.get('sortOrder');
         const sortOrder = result.sortOrder || settings.sortOrder;
         
-        renderWatchlistItems(items, container, settings.compactView, settings.priceFormat, sortOrder);
+        await renderWatchlistItems(items, container, settings.compactView, settings.priceFormat, sortOrder);
     } catch (error) {
         console.error('Error loading settings:', error);
         // Fallback to defaults
-        renderWatchlistItems(items, container, DEFAULT_SETTINGS.compactView, DEFAULT_SETTINGS.priceFormat, DEFAULT_SETTINGS.sortOrder);
+        await renderWatchlistItems(items, container, DEFAULT_SETTINGS.compactView, DEFAULT_SETTINGS.priceFormat, DEFAULT_SETTINGS.sortOrder);
     }
 }
 
-function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp', sortOrder = 'date-added') {
+async function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp', sortOrder = 'date-added') {
     
     // Count items with alerts for header display
     let alertCount = 0;
@@ -461,15 +461,19 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
     }
     
     // Sort items based on the selected sort order
-    items.sort((a, b) => {
-        const aHasAlert = (a.currentPrice !== null && 
-                          ((a.lowThreshold && a.currentPrice <= a.lowThreshold) || 
-                           (a.highThreshold && a.currentPrice >= a.highThreshold)));
-        const bHasAlert = (b.currentPrice !== null && 
-                          ((b.lowThreshold && b.currentPrice <= b.lowThreshold) || 
-                           (b.highThreshold && b.currentPrice >= b.highThreshold)));
-        
-        switch (sortOrder) {
+    if (sortOrder === 'manual') {
+        // For manual sorting, get the stored order and apply it
+        items = await applyManualSortOrder(items);
+    } else {
+        items.sort((a, b) => {
+            const aHasAlert = (a.currentPrice !== null && 
+                              ((a.lowThreshold && a.currentPrice <= a.lowThreshold) || 
+                               (a.highThreshold && a.currentPrice >= a.highThreshold)));
+            const bHasAlert = (b.currentPrice !== null && 
+                              ((b.lowThreshold && b.currentPrice <= b.lowThreshold) || 
+                               (b.highThreshold && b.currentPrice >= b.highThreshold)));
+            
+            switch (sortOrder) {
             case 'name':
                 return a.name.localeCompare(b.name);
                 
@@ -530,6 +534,7 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
                 return a.name.localeCompare(b.name);
         }
     });
+    }
     
     container.innerHTML = items.map(item => createItemHTML(item, isCompactView, priceFormat)).join('');
     
@@ -589,6 +594,8 @@ function renderWatchlistItems(items, container, isCompactView, priceFormat = 'gp
     // Add chart hover listeners for all rendered items
     setTimeout(() => {
         addChartHoverListeners(container);
+        // Initialize drag-and-drop functionality
+        initializeDragAndDrop(container, isCompactView);
     }, 100); // Small delay to ensure DOM is updated
 }
 
@@ -721,6 +728,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
             
         return `
             <div class="item compact-item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
+                <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
                 <div class="compact-content ${item.imageUrl ? 'compact-content-with-image' : ''}">
                     ${imageHtml}
                     <div class="compact-info">
@@ -760,6 +768,7 @@ function createItemHTML(item, isCompactView = false, priceFormat = 'gp') {
     
     return `
         <div class="item ${itemClass}" data-item-id="${item.id}" data-alert-status="${alertStatus}">
+            <div class="drag-handle" title="Drag to reorder">⋮⋮</div>
             <div class="${item.imageUrl ? 'item-header-with-image' : 'item-header'}">
                 ${imageHtml}
                 <div class="item-info">
@@ -1504,4 +1513,116 @@ function showError(message) {
     setTimeout(() => {
         errorSection.classList.add('hidden');
     }, 5000);
+}
+
+// Manual sorting functions
+async function applyManualSortOrder(items) {
+    try {
+        const result = await chrome.storage.sync.get('manualSortOrder');
+        const manualOrder = result.manualSortOrder || [];
+        
+        if (manualOrder.length === 0) {
+            // No manual order set, return items in their current order (usually date-added)
+            return items;
+        }
+        
+        // Create a map for quick lookup
+        const itemsMap = new Map(items.map(item => [item.id, item]));
+        const sortedItems = [];
+        
+        // First, add items in the stored manual order
+        for (const itemId of manualOrder) {
+            if (itemsMap.has(itemId)) {
+                sortedItems.push(itemsMap.get(itemId));
+                itemsMap.delete(itemId);
+            }
+        }
+        
+        // Then add any remaining items (new items) at the beginning as specified
+        const remainingItems = Array.from(itemsMap.values());
+        // Sort remaining items by date added (newest first) to put new items at the beginning
+        remainingItems.sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+        
+        return [...remainingItems, ...sortedItems];
+    } catch (error) {
+        console.error('Error applying manual sort order:', error);
+        return items;
+    }
+}
+
+async function saveManualSortOrder(itemIds) {
+    try {
+        await chrome.storage.sync.set({ manualSortOrder: itemIds });
+        console.log('Manual sort order saved:', itemIds);
+    } catch (error) {
+        console.error('Error saving manual sort order:', error);
+    }
+}
+
+async function switchToManualSorting() {
+    try {
+        // Get current settings
+        const result = await chrome.storage.sync.get('settings');
+        const settings = result.settings || {};
+        
+        // Update sortOrder to manual
+        settings.sortOrder = 'manual';
+        await chrome.storage.sync.set({ settings });
+        
+        // Also update the direct sortOrder storage for compatibility
+        await chrome.storage.sync.set({ sortOrder: 'manual' });
+        
+        console.log('Switched to manual sorting');
+    } catch (error) {
+        console.error('Error switching to manual sorting:', error);
+    }
+}
+
+let sortable = null; // Global variable to hold sortable instance
+
+function initializeDragAndDrop(container, isCompactView) {
+    // Destroy existing sortable instance if it exists
+    if (sortable) {
+        sortable.destroy();
+        sortable = null;
+    }
+    
+    // Initialize Sortable
+    sortable = Sortable.create(container, {
+        animation: 150,
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen', 
+        dragClass: 'sortable-drag',
+        handle: '.drag-handle', // Only allow dragging from the drag handle
+        onStart: function(evt) {
+            // Add dragging class for visual feedback
+            evt.item.classList.add('dragging');
+        },
+        onEnd: async function(evt) {
+            evt.item.classList.remove('dragging');
+            
+            // Check if the order actually changed
+            if (evt.oldIndex === evt.newIndex) {
+                return; // No change in order
+            }
+            
+            // Get the new order of item IDs
+            const newOrder = Array.from(container.children).map(element => {
+                return element.getAttribute('data-item-id');
+            });
+            
+            // Save the new manual order
+            await saveManualSortOrder(newOrder);
+            
+            // Switch to manual sorting if not already
+            const result = await chrome.storage.sync.get('sortOrder');
+            const currentSortOrder = result.sortOrder || 'date-added';
+            
+            if (currentSortOrder !== 'manual') {
+                await switchToManualSorting();
+            }
+            
+            console.log('Items reordered via drag and drop. New order:', newOrder);
+        }
+    });
 }
