@@ -59,7 +59,8 @@ console.log = () => {};
 // Load background script
 const fs = require('fs');
 const path = require('path');
-eval(fs.readFileSync(path.join(__dirname, 'src', 'background.js'), 'utf8'));
+const vm = require('vm');
+vm.runInThisContext(fs.readFileSync(path.join(__dirname, 'src', 'background.js'), 'utf8'));
 
 // Restore console.log
 console.log = originalLog;

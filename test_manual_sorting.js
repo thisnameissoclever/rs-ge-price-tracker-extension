@@ -76,6 +76,7 @@ global.chrome = {
 // Load the popup functions
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 
 // Suppress console.log during loading
 const originalLog = console.log;
@@ -85,7 +86,7 @@ try {
   const popupScript = fs.readFileSync(path.join(__dirname, 'src', 'popup', 'popup.js'), 'utf8');
   
   // Extract only the functions we need for testing
-  eval(`
+  vm.runInThisContext(`
     // Mock DOM elements
     global.document = {
       addEventListener: () => {},

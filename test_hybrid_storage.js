@@ -122,10 +122,11 @@ console.log = () => {};
 // Load the background script functions we need to test
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
 const backgroundScript = fs.readFileSync(path.join(__dirname, 'src', 'background.js'), 'utf8');
 
 // Extract the functions we need for testing
-eval(backgroundScript);
+vm.runInThisContext(backgroundScript);
 
 // Restore console.log for test output
 console.log = originalLog;
