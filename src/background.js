@@ -1229,10 +1229,16 @@ function analyzePriceHistory(priceHistory) {
   const weeklyChangePercent = weekAgoPrice > 0 ? (weeklyChange / weekAgoPrice * 100) : 0;
   
   // Calculate daily trend (comparing current to 1 day ago if available)
-  const oneDayAgo = Math.max(0, prices.length - 2); // Second to last entry is 1 day ago
-  const dayAgoPrice = prices[oneDayAgo];
-  const dailyChange = currentPrice - dayAgoPrice;
-  const dailyChangePercent = dayAgoPrice > 0 ? (dailyChange / dayAgoPrice * 100) : 0;
+  // Only calculate daily change if we have at least 2 data points
+  let dailyChange = null;
+  let dailyChangePercent = null;
+  
+  if (prices.length >= 2) {
+    const oneDayAgo = prices.length - 2; // Second to last entry is 1 day ago
+    const dayAgoPrice = prices[oneDayAgo];
+    dailyChange = currentPrice - dayAgoPrice;
+    dailyChangePercent = dayAgoPrice > 0 ? (dailyChange / dayAgoPrice * 100) : 0;
+  }
   
   // Calculate overall trend (current vs oldest)
   const overallChange = currentPrice - oldestPrice;

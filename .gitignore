@@ -1,2 +1,7 @@
 node_modules/
 test_threshold_fix.js
+
+# Temporary test files
+test_*.html
+extension_test.html
+*_test.js

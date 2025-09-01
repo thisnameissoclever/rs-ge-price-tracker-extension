@@ -76,13 +76,28 @@ function formatDailyChange(priceAnalysis, priceFormat = 'gp') {
         color = '#e74c3c'; // Red for negative change
     }
     
-    // Format the change with proper sign
-    const changePrefix = dailyChange > 0 ? '+' : '';
-    const formattedChange = formatPrice(Math.abs(dailyChange), priceFormat);
-    const formattedPercent = dailyChangePercent.toFixed(1);
+    // Format the change with proper sign - always show + or -, use +0 for zero changes
+    let changePrefix;
+    if (dailyChange > 0) {
+        changePrefix = '+';
+    } else if (dailyChange < 0) {
+        changePrefix = '-';
+    } else {
+        changePrefix = '+'; // Use +0 instead of -0 for zero changes
+    }
+    
+    // Handle zero change specially to avoid "Unknown" from formatPrice
+    let formattedChange;
+    if (dailyChange === 0) {
+        formattedChange = priceFormat === 'gp' ? '0 gp' : '0';
+    } else {
+        formattedChange = formatPrice(Math.abs(dailyChange), priceFormat);
+    }
+    
+    const formattedPercent = Math.abs(dailyChangePercent).toFixed(1);
     
     return `<span style="color: ${color}; font-size: 0.9em; margin-left: 5px;" title="Change from yesterday">
-        (${changePrefix}${formattedChange} • ${changePrefix}${formattedPercent}%)
+        (${changePrefix}${formattedChange} | ${changePrefix}${formattedPercent}%)
     </span>`;
 }
 
@@ -1171,6 +1186,18 @@ function analyzePriceHistory(priceHistory) {
     const weeklyChange = currentPrice - weekAgoPrice;
     const weeklyChangePercent = weekAgoPrice > 0 ? (weeklyChange / weekAgoPrice * 100) : 0;
     
+    // Calculate daily trend (comparing current to 1 day ago if available)
+    // Only calculate daily change if we have at least 2 data points
+    let dailyChange = null;
+    let dailyChangePercent = null;
+    
+    if (prices.length >= 2) {
+        const oneDayAgo = prices.length - 2; // Second to last entry is 1 day ago
+        const dayAgoPrice = prices[oneDayAgo];
+        dailyChange = currentPrice - dayAgoPrice;
+        dailyChangePercent = dayAgoPrice > 0 ? (dailyChange / dayAgoPrice * 100) : 0;
+    }
+    
     // Calculate overall trend (current vs oldest)
     const overallChange = currentPrice - oldestPrice;
     const overallChangePercent = oldestPrice > 0 ? (overallChange / oldestPrice * 100) : 0;
@@ -1253,6 +1280,8 @@ function analyzePriceHistory(priceHistory) {
         avgPrice,
         weeklyChange,
         weeklyChangePercent,
+        dailyChange,
+        dailyChangePercent,
         trendDirection,
         trendEmoji,
         dataPoints: prices.length,
