@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Daily Change Formatting</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #1a2332;
+            color: #e6e6e6;
+            padding: 20px;
+        }
+        .test-case {
+            margin: 10px 0;
+            padding: 10px;
+            background: #2c3e50;
+            border-radius: 5px;
+        }
+        .test-label {
+            font-weight: bold;
+            color: #f4d03f;
+        }
+        .price-display {
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Daily Change Formatting Tests</h1>
+    
+    <div class="test-case">
+        <div class="test-label">Test 1: Zero Change</div>
+        <div class="price-display">
+            Current Price: <strong>9,853 gp</strong>
+            <span id="test1"></span>
+        </div>
+    </div>
+    
+    <div class="test-case">
+        <div class="test-label">Test 2: Positive Change</div>
+        <div class="price-display">
+            Current Price: <strong>8,588 gp</strong>
+            <span id="test2"></span>
+        </div>
+    </div>
+    
+    <div class="test-case">
+        <div class="test-label">Test 3: Negative Change</div>
+        <div class="price-display">
+            Current Price: <strong>1,553 gp</strong>
+            <span id="test3"></span>
+        </div>
+    </div>
+    
+    <div class="test-case">
+        <div class="test-label">Test 4: Small Positive Change</div>
+        <div class="price-display">
+            Current Price: <strong>709 gp</strong>
+            <span id="test4"></span>
+        </div>
+    </div>
+    
+    <div class="test-case">
+        <div class="test-label">Test 5: Small Negative Change</div>
+        <div class="price-display">
+            Current Price: <strong>153 gp</strong>
+            <span id="test5"></span>
+        </div>
+    </div>
+
+    <script>
+        // Mock the formatPrice function
+        function formatPrice(price, format = 'gp') {
+            if (!price || price === null || price === undefined) return 'Unknown';
+            
+            switch (format) {
+                case 'gp':
+                    return price.toLocaleString() + ' gp';
+                case 'k':
+                    return (price / 1000).toFixed(1) + 'k';
+                case 'm':
+                    return (price / 1000000).toFixed(2) + 'm';
+                case 'auto':
+                default:
+                    if (price >= 1000000) {
+                        return (price / 1000000).toFixed(1) + 'm';
+                    } else if (price >= 1000) {
+                        return (price / 1000).toFixed(1) + 'k';
+                    }
+                    return price.toLocaleString() + ' gp';
+            }
+        }
+
+        // Updated formatDailyChange function
+        function formatDailyChange(priceAnalysis, priceFormat = 'gp') {
+            if (!priceAnalysis || priceAnalysis.dailyChange === undefined || priceAnalysis.dailyChange === null) {
+                return '';
+            }
+            
+            const dailyChange = priceAnalysis.dailyChange;
+            const dailyChangePercent = priceAnalysis.dailyChangePercent || 0;
+            
+            // Determine color based on change direction
+            let color = '#bdc3c7'; // Default light grey for no change
+            if (dailyChange > 0) {
+                color = '#27ae60'; // Green for positive change
+            } else if (dailyChange < 0) {
+                color = '#e74c3c'; // Red for negative change
+            }
+            
+            // Format the change with proper sign - always show + or -, use +0 for zero changes
+            let changePrefix;
+            if (dailyChange > 0) {
+                changePrefix = '+';
+            } else if (dailyChange < 0) {
+                changePrefix = '-';
+            } else {
+                changePrefix = '+'; // Use +0 instead of -0 for zero changes
+            }
+            
+            // Handle zero change specially to avoid "Unknown" from formatPrice
+            let formattedChange;
+            if (dailyChange === 0) {
+                formattedChange = priceFormat === 'gp' ? '0 gp' : '0';
+            } else {
+                formattedChange = formatPrice(Math.abs(dailyChange), priceFormat);
+            }
+            
+            const formattedPercent = Math.abs(dailyChangePercent).toFixed(1);
+            
+            return `<span style="color: ${color}; font-size: 0.9em; margin-left: 5px;" title="Change from yesterday">
+                (${changePrefix}${formattedChange} | ${changePrefix}${formattedPercent}%)
+            </span>`;
+        }
+
+        // Test cases
+        document.getElementById('test1').innerHTML = formatDailyChange({dailyChange: 0, dailyChangePercent: 0});
+        document.getElementById('test2').innerHTML = formatDailyChange({dailyChange: 187, dailyChangePercent: 2.2});
+        document.getElementById('test3').innerHTML = formatDailyChange({dailyChange: -216, dailyChangePercent: -12.2});
+        document.getElementById('test4').innerHTML = formatDailyChange({dailyChange: 6, dailyChangePercent: 0.8});
+        document.getElementById('test5').innerHTML = formatDailyChange({dailyChange: -2, dailyChangePercent: -1.3});
+    </script>
+</body>
+</html>
