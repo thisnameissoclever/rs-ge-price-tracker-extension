@@ -27,6 +27,14 @@ Make more gp with data you can act on. This Chrome extension tracks RS3 Grand Ex
 
 Tip: For sync reliability, keep watchlists to ~80–90 items (100–200 max).
 
+### 🔍 Omnibox Search (Address Bar)
+
+Quick search from your browser address bar:
+- Type `ge` + TAB/SPACE + search term → Search RuneScape Grand Exchange
+  - Example: `ge dragon scimitar` → https://secure.runescape.com/m=itemdb_rs/results?query=dragon%20scimitar
+- Type `rs` + SPACE + search term → Search RuneScape Wiki  
+  - Example: `rs elder logs` → https://runescape.wiki/?search=elder%20logs
+
 ## 🧠 How trading signals work (v1.6.0)
 
 - Z-score: how far current price is from the 30-day average (in standard deviations)
