@@ -483,20 +483,20 @@ async function renderWatchlistItems(items, container, isCompactView, priceFormat
                 return bPrice - aPrice; // Highest price first
                 
             case 'change':
-                // Sort by absolute daily price change - items without history at top
+                // Sort by absolute daily price change - biggest movers first
                 const aAnalysis = a.priceAnalysis;
                 const bAnalysis = b.priceAnalysis;
                 
-                // Items without price analysis (no history) go to top
+                // Items without price analysis go to bottom (can't be "biggest movers" without data)
                 if (!aAnalysis && !bAnalysis) return 0;
-                if (!aAnalysis) return -1; // a goes to top
-                if (!bAnalysis) return 1;  // b goes to top
+                if (!aAnalysis) return 1;  // a goes to bottom
+                if (!bAnalysis) return -1; // b goes to bottom
                 
                 // Get absolute daily change values
                 const aDailyChange = Math.abs(aAnalysis.dailyChange || 0);
                 const bDailyChange = Math.abs(bAnalysis.dailyChange || 0);
                 
-                return bDailyChange - aDailyChange; // Largest change first
+                return bDailyChange - aDailyChange; // Largest absolute change first
                 
             case 'alert':
                 if (aHasAlert && !bHasAlert) return -1;
