@@ -158,6 +158,83 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   // we'll let the user click the extension icon instead
 });
 
+// Handle omnibox input for RuneScape Grand Exchange and wiki search
+chrome.omnibox.onInputEntered.addListener((text, disposition) => {
+  console.log('Omnibox input entered:', text);
+  
+  let searchUrl;
+  
+  // Check if the user is trying to use "rs" keyword for RuneScape wiki search
+  if (text.toLowerCase().startsWith('rs ')) {
+    // Extract the search query after "rs "
+    const query = text.substring(3).trim();
+    if (query) {
+      searchUrl = `https://runescape.wiki/?search=${encodeURIComponent(query)}`;
+      console.log('Redirecting to RuneScape wiki:', searchUrl);
+    } else {
+      searchUrl = 'https://runescape.wiki/';
+    }
+  } else {
+    // Default behavior: search the Grand Exchange
+    // Handle case where user might type "ge " or just the search term directly
+    let query = text.trim();
+    if (query.toLowerCase().startsWith('ge ')) {
+      query = text.substring(3).trim();
+    }
+    
+    if (query) {
+      searchUrl = `https://secure.runescape.com/m=itemdb_rs/results?query=${encodeURIComponent(query)}`;
+      console.log('Redirecting to RuneScape Grand Exchange:', searchUrl);
+    } else {
+      searchUrl = 'https://secure.runescape.com/m=itemdb_rs/';
+    }
+  }
+  
+  // Open the URL in the current tab or a new tab based on disposition
+  if (disposition === 'currentTab') {
+    chrome.tabs.update({ url: searchUrl });
+  } else {
+    chrome.tabs.create({ url: searchUrl });
+  }
+});
+
+// Provide suggestions for omnibox input
+chrome.omnibox.onInputChanged.addListener((text, suggest) => {
+  const suggestions = [];
+  
+  // Suggest RuneScape wiki search if user starts typing "rs"
+  if (text.toLowerCase().startsWith('rs') && text.length >= 2) {
+    const query = text.substring(2).trim();
+    if (query) {
+      suggestions.push({
+        content: `rs ${query}`,
+        description: `Search RuneScape wiki for: <match>${query}</match>`
+      });
+    } else {
+      suggestions.push({
+        content: 'rs ',
+        description: 'Search RuneScape wiki (type "rs [search term]")'
+      });
+    }
+  }
+  
+  // Always provide GE search suggestion as default
+  const geQuery = text.toLowerCase().startsWith('ge ') ? text.substring(3).trim() : text.trim();
+  if (geQuery) {
+    suggestions.push({
+      content: geQuery,
+      description: `Search RuneScape Grand Exchange for: <match>${geQuery}</match>`
+    });
+  } else {
+    suggestions.push({
+      content: '',
+      description: 'Search RuneScape Grand Exchange (default)'
+    });
+  }
+  
+  suggest(suggestions);
+});
+
 // Simple mutex for storage operations
 let storageMutex = false;
 
