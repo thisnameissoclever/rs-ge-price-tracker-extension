@@ -1039,28 +1039,36 @@
         /* Drag and Drop Styles */
         .drag-handle {
             position: absolute;
-            top: 8px;
-            left: 8px;
+            top: 6px;
+            left: 6px;
             color: #95a5a6;
             cursor: grab;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
             z-index: 2;
             user-select: none;
-            padding: 2px 4px;
-            border-radius: 3px;
-            background: rgba(0,0,0,0.3);
+            padding: 4px 6px;
+            border-radius: 4px;
+            background: rgba(0,0,0,0.4);
             transition: all 0.2s ease;
+            line-height: 1;
+            min-width: 16px;
+            text-align: center;
         }
         
         .drag-handle:hover {
             color: #f4d03f;
             background: rgba(244, 208, 63, 0.2);
             cursor: grab;
+            transform: scale(1.1);
         }
         
         .drag-handle:active {
             cursor: grabbing;
+        }
+        
+        .compact-item {
+            padding-left: 8px; /* Make room for the relative positioned drag handle */
         }
         
         .compact-item .drag-handle {
@@ -1068,9 +1076,16 @@
             top: auto;
             left: auto;
             margin-right: 8px;
-            margin-left: 4px;
-            font-size: 10px;
+            margin-left: 0;
+            font-size: 12px;
             flex-shrink: 0;
+            min-width: 20px;
+            padding: 2px 4px;
+        }
+        
+        /* Adjust item positioning for drag handle */
+        .item:not(.compact-item) {
+            padding-left: 35px; /* Make room for absolute positioned drag handle */
         }
         
         /* Sortable.js styling */
@@ -1079,19 +1094,22 @@
         }
         
         .sortable-chosen {
-            transform: rotate(5deg);
+            transform: rotate(3deg);
             box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+            z-index: 1000 !important;
         }
         
         .sortable-drag {
-            transform: rotate(5deg);
+            transform: rotate(3deg);
             box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
+            z-index: 1000 !important;
         }
         
         .dragging {
-            transform: rotate(5deg);
+            transform: rotate(3deg) !important;
             box-shadow: 0 8px 16px rgba(0,0,0,0.6) !important;
             opacity: 0.9;
+            z-index: 1000 !important;
         }
     </style>
 </head>
