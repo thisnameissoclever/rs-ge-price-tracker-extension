@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RS Grand Exchange Price Tracker for RuneScape 3",
-  "version": "1.7.1",
+  "version": "1.7.3",
   "description": "Track RuneScape Grand Exchange item prices and set price alerts.",
   "permissions": [
     "activeTab",
