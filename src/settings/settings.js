@@ -220,18 +220,43 @@ async function exportData() {
     }
 }
 
-// Get watchlist data for export (handles both sync and local storage)
+// Get watchlist data for export (handles hybrid storage architecture)
 async function getWatchlistForExport() {
     try {
-        // First try sync storage
-        const syncResult = await chrome.storage.sync.get(['watchlist']);
-        if (syncResult.watchlist && Object.keys(syncResult.watchlist).length > 0) {
-            return syncResult.watchlist;
+        // Check for legacy watchlist data first
+        const legacyResult = await chrome.storage.sync.get(['watchlist']);
+        if (legacyResult.watchlist && Object.keys(legacyResult.watchlist).length > 0) {
+            return legacyResult.watchlist;
         }
         
-        // Fallback to local storage
-        const localResult = await chrome.storage.local.get(['watchlist']);
-        return localResult.watchlist || {};
+        // Use hybrid storage approach: merge itemMetadata + priceData
+        const metadata = await chrome.storage.sync.get(['itemMetadata']);
+        const priceData = await chrome.storage.local.get(['priceData']);
+        
+        const itemMetadataObj = metadata.itemMetadata || {};
+        const priceDataObj = priceData.priceData || {};
+        
+        // Merge the data sources like getWatchlist() does in background.js
+        const watchlist = {};
+        for (const [itemId, itemMetadata] of Object.entries(itemMetadataObj)) {
+            const itemPriceData = priceDataObj[itemId] || {};
+            
+            // Combine metadata and price data
+            watchlist[itemId] = {
+                ...itemMetadata,
+                currentPrice: itemPriceData.currentPrice || null,
+                lastChecked: itemPriceData.lastChecked || itemMetadata.addedAt || Date.now(),
+                previousPrice: itemPriceData.previousPrice,
+                priceAnalysis: itemPriceData.priceAnalysis,
+                lastHistoryUpdate: itemPriceData.lastHistoryUpdate,
+                lastLowAlert: itemPriceData.lastLowAlert,
+                lastHighAlert: itemPriceData.lastHighAlert,
+                lastThresholdUpdate: itemPriceData.lastThresholdUpdate
+            };
+        }
+        
+        console.log(`📤 Exporting ${Object.keys(watchlist).length} items from hybrid storage`);
+        return watchlist;
     } catch (error) {
         console.error('Error getting watchlist for export:', error);
         return {};
@@ -247,10 +272,53 @@ async function importData(file) {
         // Check for new format (v1.0.2+)
         if (data.version && data.watchlist !== undefined) {
             if (confirm('This will replace your current watchlist and settings. Are you sure you want to continue?\n\nCurrent watchlist items will be lost.')) {
-                // Import watchlist
+                
+                // Import watchlist using hybrid storage architecture
                 if (data.watchlist && Object.keys(data.watchlist).length > 0) {
-                    await chrome.storage.sync.set({ watchlist: data.watchlist });
-                    console.log('Imported watchlist with', Object.keys(data.watchlist).length, 'items');
+                    // Split the watchlist data into metadata (sync) and price data (local)
+                    const itemMetadata = {};
+                    const priceData = {};
+                    
+                    for (const [itemId, item] of Object.entries(data.watchlist)) {
+                        // Extract metadata for sync storage (lightweight data)
+                        itemMetadata[itemId] = {
+                            id: item.id,
+                            name: item.name,
+                            url: item.url,
+                            originalUrl: item.originalUrl,
+                            imageUrl: item.imageUrl,
+                            lowThreshold: item.lowThreshold,
+                            highThreshold: item.highThreshold,
+                            addedAt: item.addedAt
+                        };
+                        
+                        // Extract price data for local storage (heavy data)
+                        if (item.currentPrice !== undefined || item.lastChecked || item.priceAnalysis) {
+                            priceData[itemId] = {
+                                currentPrice: item.currentPrice,
+                                lastChecked: item.lastChecked,
+                                previousPrice: item.previousPrice,
+                                priceAnalysis: item.priceAnalysis,
+                                lastHistoryUpdate: item.lastHistoryUpdate,
+                                lastLowAlert: item.lastLowAlert,
+                                lastHighAlert: item.lastHighAlert,
+                                lastThresholdUpdate: item.lastThresholdUpdate
+                            };
+                        }
+                    }
+                    
+                    // Save to hybrid storage
+                    await chrome.storage.sync.set({ itemMetadata });
+                    if (Object.keys(priceData).length > 0) {
+                        await chrome.storage.local.set({ priceData });
+                    }
+                    
+                    console.log('Imported watchlist with', Object.keys(data.watchlist).length, 'items using hybrid storage');
+                } else {
+                    // Clear existing watchlist if importing empty data
+                    await chrome.storage.sync.set({ itemMetadata: {} });
+                    await chrome.storage.local.set({ priceData: {} });
+                    console.log('Imported empty watchlist');
                 }
                 
                 // Import settings
